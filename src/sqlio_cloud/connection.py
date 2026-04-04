@@ -108,13 +108,34 @@ class DatabaseConnection:
     def __init__(self, config: ConnectionConfig):
         self.config = config
         connect_args = self._build_connect_args()
-        self.engine: Engine = create_engine(
-            config.url,
-            pool_size=config.pool_size,
-            max_overflow=config.max_overflow,
-            pool_pre_ping=True,
-            connect_args=connect_args,
-        )
+        engine_kwargs: dict[str, Any] = {
+            "pool_size": config.pool_size,
+            "max_overflow": config.max_overflow,
+            "pool_pre_ping": True,
+        }
+        if "pymssql" in config.dialect:
+            import pymssql as _pymssql
+            cfg = config
+            def _mssql_creator():
+                return _pymssql.connect(
+                    server=cfg.host,
+                    port=cfg.port,
+                    user=cfg.username,
+                    password=cfg.password,
+                    database=cfg.database,
+                    tds_version="7.3",
+                    login_timeout=15,
+                    timeout=30,
+                )
+            engine_kwargs["creator"] = _mssql_creator
+            self.engine: Engine = create_engine(
+                config.url, **engine_kwargs,
+            )
+        else:
+            engine_kwargs["connect_args"] = connect_args
+            self.engine: Engine = create_engine(
+                config.url, **engine_kwargs,
+            )
         self.pool_stats = PoolStats()
         self._attach_instrumentation()
 
@@ -122,7 +143,8 @@ class DatabaseConnection:
         args: dict[str, Any] = {}
         if "pymssql" in self.config.dialect:
             args["tds_version"] = "7.3"
-            args["login_timeout"] = 30
+            args["login_timeout"] = 15
+            args["timeout"] = 30
         elif "pymysql" in self.config.dialect:
             import ssl as _ssl
             ctx = _ssl.create_default_context()
@@ -170,16 +192,19 @@ class DatabaseConnection:
         error is None on success or an error string on failure.
         """
         family = self.dialect_family
-        if family == "mssql":
-            fallback_db = "master"
-        elif family == "postgresql":
-            fallback_db = "postgres"
-        elif family == "mysql":
-            fallback_db = "mysql"
-        else:
+        if family not in ("mssql", "postgresql", "mysql"):
             return False, None
 
         target_db = self.config.database
+
+        if family == "mssql":
+            return self._auto_create_mssql(target_db)
+
+        if family == "postgresql":
+            fallback_db = "postgres"
+        else:
+            fallback_db = "mysql"
+
         fallback_url = self.config.url.replace(
             f"@{self.config.host}:{self.config.port}/{target_db}",
             f"@{self.config.host}:{self.config.port}/{fallback_db}",
@@ -193,11 +218,7 @@ class DatabaseConnection:
             )
             created = False
             with fb_engine.connect() as conn:
-                if family == "mssql":
-                    exists = conn.execute(
-                        text("SELECT DB_ID(:db)"), {"db": target_db}
-                    ).scalar()
-                elif family == "postgresql":
+                if family == "postgresql":
                     exists = conn.execute(
                         text("SELECT 1 FROM pg_database WHERE datname = :db"),
                         {"db": target_db},
@@ -209,45 +230,96 @@ class DatabaseConnection:
                     ).scalar()
 
                 if not exists:
-                    q = {"mssql": f"CREATE DATABASE [{target_db}]",
-                         "mysql": f"CREATE DATABASE `{target_db}`",
+                    q = {"mysql": f"CREATE DATABASE `{target_db}`",
                          "postgresql": f'CREATE DATABASE "{target_db}"'}
                     conn.execute(text(q[family]))
                     created = True
 
             fb_engine.dispose()
-            self.engine.dispose()
-            self.engine = create_engine(
-                self.config.url,
-                pool_size=self.config.pool_size,
-                max_overflow=self.config.max_overflow,
-                pool_pre_ping=True,
-                connect_args=self._build_connect_args(),
-            )
+            self._rebuild_engine()
             return created, None
         except Exception as e:
             return False, str(e)
 
+    def _auto_create_mssql(self, target_db: str) -> tuple[bool, Optional[str]]:
+        """Auto-create for SQL Server / SQL MI using raw pymssql.
+
+        Connects without specifying a database so it works on SQL MI public
+        endpoints where direct access to 'master' via URL may be blocked.
+        """
+        try:
+            import pymssql
+            conn = pymssql.connect(
+                server=self.config.host,
+                port=self.config.port,
+                user=self.config.username,
+                password=self.config.password,
+                tds_version="7.3",
+                login_timeout=30,
+                autocommit=True,
+            )
+            cursor = conn.cursor()
+            cursor.execute("SELECT DB_ID(%s)", (target_db,))
+            row = cursor.fetchone()
+            exists = row and row[0] is not None
+
+            created = False
+            if not exists:
+                cursor.execute(f"CREATE DATABASE [{target_db}]")
+                created = True
+
+            cursor.close()
+            conn.close()
+            self._rebuild_engine()
+            return created, None
+        except Exception as e:
+            return False, str(e)
+
+    def _rebuild_engine(self):
+        """Dispose the current engine and create a fresh one."""
+        self.engine.dispose()
+        self.engine = create_engine(
+            self.config.url,
+            pool_size=self.config.pool_size,
+            max_overflow=self.config.max_overflow,
+            pool_pre_ping=True,
+            connect_args=self._build_connect_args(),
+        )
+
     def _enable_mssql_snapshot_isolation(self):
-        """Enable snapshot isolation on the target MSSQL database if not already on."""
+        """Enable snapshot isolation on the target MSSQL database if not already on.
+
+        Skipped for Azure SQL MI / Azure SQL DB where READ_COMMITTED_SNAPSHOT
+        is already ON by default and ALTER DATABASE can hang or require
+        elevated permissions on the public endpoint.
+        """
         if self.dialect_family != "mssql":
             return
         try:
-            db = self.config.database
-            autocommit_engine = create_engine(
-                self.config.url,
-                poolclass=sa_pool.NullPool,
-                connect_args=self._build_connect_args(),
-                isolation_level="AUTOCOMMIT",
+            import pymssql
+            conn = pymssql.connect(
+                server=self.config.host,
+                port=self.config.port,
+                user=self.config.username,
+                password=self.config.password,
+                database=self.config.database,
+                tds_version="7.3",
+                login_timeout=15,
+                autocommit=True,
             )
-            with autocommit_engine.connect() as conn:
-                conn.execute(text(
-                    f"ALTER DATABASE [{db}] SET ALLOW_SNAPSHOT_ISOLATION ON"
-                ))
-                conn.execute(text(
-                    f"ALTER DATABASE [{db}] SET READ_COMMITTED_SNAPSHOT ON"
-                ))
-            autocommit_engine.dispose()
+            cursor = conn.cursor()
+            cursor.execute("SELECT SERVERPROPERTY('EngineEdition')")
+            edition = cursor.fetchone()[0]
+            # 5 = Azure SQL DB, 8 = Azure SQL MI — snapshot is on by default
+            if edition in (5, 8):
+                cursor.close()
+                conn.close()
+                return
+            db = self.config.database
+            cursor.execute(f"ALTER DATABASE [{db}] SET ALLOW_SNAPSHOT_ISOLATION ON")
+            cursor.execute(f"ALTER DATABASE [{db}] SET READ_COMMITTED_SNAPSHOT ON")
+            cursor.close()
+            conn.close()
         except Exception:
             pass
 

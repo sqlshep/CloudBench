@@ -18,7 +18,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 from sqlio_cloud.connection import (
-    ConnectionConfig, DatabaseConnection,
+    ConnectionConfig, DatabaseConnection, ValidationResult,
     DB_TYPE_DIALECTS, DB_TYPE_PORTS,
 )
 from sqlio_cloud.config import load_config, apply_preset, PRESET_PROFILES
@@ -26,6 +26,52 @@ from sqlio_cloud.errors import friendly_error
 from sqlio_cloud.metrics import FullBenchmarkResult
 
 from sqlio_cloud.reporter import JSONReporter, HTMLReporter
+
+
+def _validate_mssql_direct(config: ConnectionConfig) -> ValidationResult:
+    """Validate SQL Server / SQL MI using raw pymssql (bypasses SQLAlchemy
+    dialect init which can hang on SQL MI public endpoints)."""
+    import pymssql
+    try:
+        conn = pymssql.connect(
+            server=config.host,
+            port=config.port,
+            user=config.username,
+            password=config.password,
+            database=config.database,
+            tds_version="7.3",
+            login_timeout=15,
+            autocommit=True,
+        )
+        cursor = conn.cursor()
+        t0 = time.perf_counter()
+        cursor.execute("SELECT 1")
+        cursor.fetchone()
+        ping = (time.perf_counter() - t0) * 1000
+        cursor.execute("SELECT @@VERSION")
+        version = cursor.fetchone()[0] or ""
+        cursor.close()
+        conn.close()
+        return ValidationResult(
+            success=True,
+            server_version=version,
+            ping_ms=ping,
+            max_connections=0,
+            dialect_family="mssql",
+        )
+    except Exception as e:
+        err_str = str(e)
+        if "18456" in err_str or "does not exist" in err_str.lower():
+            created, create_err = DatabaseConnection(config)._auto_create_mssql(
+                config.database
+            )
+            if create_err is None:
+                return _validate_mssql_direct(config)
+            return ValidationResult(
+                success=False,
+                error=f"Database '{config.database}' does not exist and auto-create failed: {create_err}",
+            )
+        return ValidationResult(success=False, error=err_str)
 
 _AUTH_USER = "sqladmin"
 _AUTH_HASH = "9c82affa7f297103c1c747ff8c5e506ac3863070912a272ad92c2f62d90328cc"
@@ -175,17 +221,28 @@ async def validate_connection(req: ConnectRequest, request: Request):
                 "error": f"Hostname '{host}' contains colons — this looks like a Cloud SQL connection name, not a network address.",
                 "advice": "Use the Public IP address (e.g. 34.26.137.105) or DNS hostname instead of the connection name. You can find the public IP on the Cloud SQL instance's Overview or Networking page in the GCP console.",
             }
+        dialect = DB_TYPE_DIALECTS.get(req.db_type, "postgresql+psycopg")
         config = ConnectionConfig(
-            dialect=DB_TYPE_DIALECTS.get(req.db_type, "postgresql+psycopg"),
+            dialect=dialect,
             host=host,
             port=req.port,
             database=req.database,
             username=req.username,
             password=req.password,
         )
-        db = DatabaseConnection(config)
-        vr = db.validate()
-        db.dispose()
+
+        if "pymssql" in dialect:
+            vr = await asyncio.to_thread(
+                _validate_mssql_direct, config
+            )
+        else:
+            db = DatabaseConnection(config)
+            def _blocking_validate():
+                try:
+                    return db.validate()
+                finally:
+                    db.dispose()
+            vr = await asyncio.to_thread(_blocking_validate)
 
         if vr.success:
             resp = {
