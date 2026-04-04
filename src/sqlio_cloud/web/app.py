@@ -57,6 +57,7 @@ def _is_authenticated(request: Request) -> bool:
 
 # In-memory store for active benchmark runs
 _runs: dict[str, dict] = {}
+_cancel_events: dict[str, threading.Event] = {}
 
 
 class ConnectRequest(BaseModel):
@@ -242,12 +243,15 @@ async def benchmark_ws(ws: WebSocket):
         await ws.close(code=4001, reason="Not authenticated")
         return
     await ws.accept()
+    run_id = None
     try:
         raw = await ws.receive_text()
         req = json.loads(raw)
 
         run_id = str(uuid.uuid4())[:8]
+        cancel = threading.Event()
         _runs[run_id] = {"status": "starting", "progress": [], "current_test": ""}
+        _cancel_events[run_id] = cancel
         await ws.send_json({"type": "run_started", "run_id": run_id})
 
         config = ConnectionConfig(
@@ -267,6 +271,7 @@ async def benchmark_ws(ws: WebSocket):
         result_holder: dict = {}
 
         def _run_benchmark():
+            db = None
             try:
                 db = DatabaseConnection(config)
                 vr = db.validate()
@@ -284,7 +289,12 @@ async def benchmark_ws(ws: WebSocket):
                 cfg.setdefault("sqliosim", {})["page_size"] = block_size
                 tests = custom_tests or cfg["_tests"]
 
-                result = _execute_suite_with_ws(db, cfg, tests, run_id, loop, ws)
+                result = _execute_suite_with_ws(db, cfg, tests, run_id, loop, ws, cancel)
+
+                if cancel.is_set():
+                    result_holder["error"] = "Benchmark cancelled"
+                    return
+
                 result.preset = preset
                 result.database_info = {
                     "host": config.host,
@@ -297,10 +307,16 @@ async def benchmark_ws(ws: WebSocket):
                 output_dir = cfg.get("reporting", {}).get("output_dir", "results")
                 JSONReporter().save(result, output_dir)
                 HTMLReporter().save(result, output_dir)
-
-                db.dispose()
             except Exception as e:
-                result_holder["error"] = str(e)
+                if not cancel.is_set():
+                    result_holder["error"] = str(e)
+            finally:
+                if db:
+                    try:
+                        db.dispose()
+                    except Exception:
+                        pass
+                _cancel_events.pop(run_id, None)
 
         thread = threading.Thread(target=_run_benchmark, daemon=True)
         thread.start()
@@ -317,6 +333,11 @@ async def benchmark_ws(ws: WebSocket):
                 })
             except Exception:
                 break
+
+        if cancel.is_set():
+            thread.join(timeout=2)
+            _runs[run_id]["status"] = "cancelled"
+            return
 
         thread.join(timeout=5)
 
@@ -336,7 +357,12 @@ async def benchmark_ws(ws: WebSocket):
             })
 
     except WebSocketDisconnect:
-        pass
+        if run_id and run_id in _cancel_events:
+            _cancel_events[run_id].set()
+            run = _runs.get(run_id)
+            if run:
+                run["status"] = "cancelled"
+                run["current_test"] = "Cancelled — client disconnected"
     except Exception as e:
         try:
             await ws.send_json({"type": "error", "error": str(e)})
@@ -357,8 +383,8 @@ def _send_ws_update(run_id: str, test_name: str, pct: int, loop, ws):
             run["progress"].append({"test": test_name, "pct": pct})
 
 
-def _execute_suite_with_ws(db, cfg, tests, run_id, loop, ws) -> FullBenchmarkResult:
-    """Same logic as CLI _execute_suite but with WebSocket progress updates."""
+def _execute_suite_with_ws(db, cfg, tests, run_id, loop, ws, cancel: threading.Event) -> FullBenchmarkResult:
+    """Same logic as CLI _execute_suite but with WebSocket progress updates and cancellation."""
     import logging
     log = logging.getLogger("cloudbench")
     from sqlio_cloud.metrics import FullBenchmarkResult
@@ -368,6 +394,9 @@ def _execute_suite_with_ws(db, cfg, tests, run_id, loop, ws) -> FullBenchmarkRes
     sim_cfg = cfg.get("sqliosim", {})
     dsb_cfg = cfg.get("dsb", {})
     net_cfg = cfg.get("network", {})
+
+    def _cancelled():
+        return cancel.is_set()
 
     def _fail(test_label: str, exc: Exception):
         msg = friendly_error(exc)
@@ -379,7 +408,7 @@ def _execute_suite_with_ws(db, cfg, tests, run_id, loop, ws) -> FullBenchmarkRes
 
     needs_io_table = any(t in tests for t in ("random_read", "random_write", "seq_scan", "mixed"))
 
-    if needs_io_table:
+    if needs_io_table and not _cancelled():
         _send_ws_update(run_id, "Setting up test table", 0, loop, ws)
         from sqlio_cloud.sqlio.random_io import RandomIOTest
         rio = RandomIOTest(db, table_rows=sqlio_cfg.get("table_rows", 1_000_000),
@@ -387,7 +416,7 @@ def _execute_suite_with_ws(db, cfg, tests, run_id, loop, ws) -> FullBenchmarkRes
         rio.setup(progress_callback=lambda pct: _send_ws_update(run_id, "Setting up test table", pct, loop, ws))
         _send_ws_update(run_id, "Setting up test table", 100, loop, ws)
 
-    if "random_read" in tests:
+    if "random_read" in tests and not _cancelled():
         _send_ws_update(run_id, "I/O: Random Reads", 0, loop, ws)
         try:
             from sqlio_cloud.sqlio.random_io import RandomIOTest
@@ -422,7 +451,7 @@ def _execute_suite_with_ws(db, cfg, tests, run_id, loop, ws) -> FullBenchmarkRes
             _fail("I/O: Random Reads", e)
         _send_ws_update(run_id, "I/O: Random Reads", 100, loop, ws)
 
-    if "random_write" in tests:
+    if "random_write" in tests and not _cancelled():
         _send_ws_update(run_id, "I/O: Random Writes", 0, loop, ws)
         try:
             from sqlio_cloud.sqlio.random_io import RandomIOTest
@@ -457,7 +486,7 @@ def _execute_suite_with_ws(db, cfg, tests, run_id, loop, ws) -> FullBenchmarkRes
             _fail("I/O: Random Writes", e)
         _send_ws_update(run_id, "I/O: Random Writes", 100, loop, ws)
 
-    if "seq_scan" in tests:
+    if "seq_scan" in tests and not _cancelled():
         _send_ws_update(run_id, "I/O: Sequential Scan", 0, loop, ws)
         try:
             from sqlio_cloud.sqlio.sequential_scan import SequentialScanTest
@@ -466,7 +495,7 @@ def _execute_suite_with_ws(db, cfg, tests, run_id, loop, ws) -> FullBenchmarkRes
             _fail("I/O: Sequential Scan", e)
         _send_ws_update(run_id, "I/O: Sequential Scan", 100, loop, ws)
 
-    if "mixed" in tests:
+    if "mixed" in tests and not _cancelled():
         _send_ws_update(run_id, "I/O: Mixed Workload", 0, loop, ws)
         try:
             from sqlio_cloud.sqlio.mixed_workload import MixedWorkloadTest
@@ -477,7 +506,7 @@ def _execute_suite_with_ws(db, cfg, tests, run_id, loop, ws) -> FullBenchmarkRes
             _fail("I/O: Mixed Workload", e)
         _send_ws_update(run_id, "I/O: Mixed Workload", 100, loop, ws)
 
-    if "bulk_insert" in tests:
+    if "bulk_insert" in tests and not _cancelled():
         _send_ws_update(run_id, "I/O: Bulk Insert", 0, loop, ws)
         try:
             from sqlio_cloud.sqlio.bulk_write import BulkWriteTest
@@ -489,7 +518,7 @@ def _execute_suite_with_ws(db, cfg, tests, run_id, loop, ws) -> FullBenchmarkRes
             _fail("I/O: Bulk Insert", e)
         _send_ws_update(run_id, "I/O: Bulk Insert", 100, loop, ws)
 
-    if "integrity" in tests:
+    if "integrity" in tests and not _cancelled():
         _send_ws_update(run_id, "Stress: Integrity", 0, loop, ws)
         try:
             from sqlio_cloud.sqliosim.integrity import IntegrityStressTest
@@ -505,7 +534,7 @@ def _execute_suite_with_ws(db, cfg, tests, run_id, loop, ws) -> FullBenchmarkRes
             _fail("Stress: Integrity", e)
         _send_ws_update(run_id, "Stress: Integrity", 100, loop, ws)
 
-    if "concurrency" in tests:
+    if "concurrency" in tests and not _cancelled():
         _send_ws_update(run_id, "Stress: Concurrency", 0, loop, ws)
         try:
             from sqlio_cloud.sqliosim.concurrent_stress import ConcurrentStressTest
@@ -520,7 +549,7 @@ def _execute_suite_with_ws(db, cfg, tests, run_id, loop, ws) -> FullBenchmarkRes
             _fail("Stress: Concurrency", e)
         _send_ws_update(run_id, "Stress: Concurrency", 100, loop, ws)
 
-    if "isolation" in tests:
+    if "isolation" in tests and not _cancelled():
         _send_ws_update(run_id, "Stress: Isolation", 0, loop, ws)
         try:
             from sqlio_cloud.sqliosim.isolation import IsolationTest
@@ -533,7 +562,7 @@ def _execute_suite_with_ws(db, cfg, tests, run_id, loop, ws) -> FullBenchmarkRes
             _fail("Stress: Isolation", e)
         _send_ws_update(run_id, "Stress: Isolation", 100, loop, ws)
 
-    if "dsb" in tests:
+    if "dsb" in tests and not _cancelled():
         _send_ws_update(run_id, "Analytical Queries", 0, loop, ws)
         try:
             from sqlio_cloud.dsb.data_gen import DSBDataGenerator
@@ -573,7 +602,7 @@ def _execute_suite_with_ws(db, cfg, tests, run_id, loop, ws) -> FullBenchmarkRes
             _fail("Analytical Queries", e)
         _send_ws_update(run_id, "Analytical Queries", 100, loop, ws)
 
-    if "pool_stress" in tests:
+    if "pool_stress" in tests and not _cancelled():
         _send_ws_update(run_id, "Pool Stress", 0, loop, ws)
         try:
             from sqlio_cloud.sqlio.pool_stress import PoolStressTest
@@ -591,7 +620,7 @@ def _execute_suite_with_ws(db, cfg, tests, run_id, loop, ws) -> FullBenchmarkRes
             _fail("Pool Stress", e)
         _send_ws_update(run_id, "Pool Stress", 100, loop, ws)
 
-    if "net_latency" in tests:
+    if "net_latency" in tests and not _cancelled():
         _send_ws_update(run_id, "Network: Profiling", 0, loop, ws)
         try:
             from sqlio_cloud.network.profiler import NetworkProfiler

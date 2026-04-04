@@ -121,6 +121,21 @@ body {
 .progress-bar-fill.done { background: var(--green); }
 .progress-item .pct { flex: 0 0 90px; text-align: right; font-size: 0.85rem; color: var(--text-dim); }
 .current-label { color: var(--cyan); font-size: 0.9rem; margin-bottom: 1rem; }
+.btn-abort {
+  padding: 0.4rem 1.2rem; background: transparent; color: var(--red); border: 1px solid var(--red);
+  border-radius: 6px; font-size: 0.85rem; font-weight: 600; cursor: pointer; transition: all 0.2s;
+}
+.btn-abort:hover { background: var(--red); color: #fff; }
+.btn-abort:disabled { opacity: 0.3; cursor: not-allowed; }
+.reconnect-box {
+  text-align: center; padding: 1.5rem; margin-top: 1rem;
+  background: var(--bg3); border-radius: 8px; border: 1px solid var(--border);
+}
+.reconnect-box button {
+  margin-top: 0.75rem; padding: 0.5rem 1.5rem; background: var(--blue); color: #fff;
+  border: none; border-radius: 6px; font-size: 0.9rem; cursor: pointer;
+}
+.reconnect-box button:hover { opacity: 0.85; }
 
 /* Progress tooltips */
 .info-icon { color: var(--text-dim); cursor: help; font-size: 0.85rem; vertical-align: middle; }
@@ -375,7 +390,10 @@ body {
   <!-- STEP 3: Running -->
   <div id="step-3" class="step-panel hidden">
     <div class="card">
-      <h2>Benchmark Running</h2>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.5rem">
+        <h2 style="margin:0">Benchmark Running</h2>
+        <button id="btn-abort" class="btn-abort" onclick="abortBenchmark()">Abort</button>
+      </div>
       <div class="current-label" id="current-test">Initializing...</div>
       <div class="progress-list" id="progress-list"></div>
     </div>
@@ -608,7 +626,40 @@ document.getElementById('btn-start').addEventListener('click', () => {
   startBenchmark(tests);
 });
 
+let benchmarkDone = false;
+
+function abortBenchmark() {
+  const btn = document.getElementById('btn-abort');
+  btn.disabled = true;
+  btn.textContent = 'Aborting...';
+  if (ws && ws.readyState <= 1) {
+    ws.close();
+  }
+  document.getElementById('current-test').innerHTML =
+    '<span style="color:var(--yellow)">Cancelling benchmark...</span>';
+  setTimeout(() => {
+    if (!benchmarkDone) _showReconnect('Benchmark aborted.');
+  }, 1000);
+}
+
+function _showReconnect(message) {
+  document.getElementById('current-test').innerHTML =
+    `<span style="color:var(--yellow)">${message}</span>`;
+  document.getElementById('progress-list').innerHTML = `
+    <div class="reconnect-box">
+      <p style="color:var(--text-dim)">The benchmark has been stopped. Any in-progress test on the server will finish its current operation and clean up.</p>
+      <button onclick="location.reload()">Return to Start</button>
+    </div>`;
+  document.getElementById('btn-abort').classList.add('hidden');
+}
+
 function startBenchmark(tests) {
+  benchmarkDone = false;
+  const abortBtn = document.getElementById('btn-abort');
+  abortBtn.disabled = false;
+  abortBtn.textContent = 'Abort';
+  abortBtn.classList.remove('hidden');
+
   const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
   ws = new WebSocket(`${protocol}//${location.host}/ws/benchmark`);
 
@@ -641,6 +692,7 @@ function startBenchmark(tests) {
     }
 
     if (msg.type === 'complete') {
+      benchmarkDone = true;
       benchmarkResults = msg.results;
       goStep(4);
       renderResults(msg.results);
@@ -653,13 +705,19 @@ function startBenchmark(tests) {
         document.getElementById('progress-list').innerHTML =
           `<div class="error-box"><h4>What to do</h4><pre>${msg.advice}</pre></div>`;
       }
+      document.getElementById('btn-abort').textContent = 'Return to Start';
+      document.getElementById('btn-abort').disabled = false;
+      document.getElementById('btn-abort').onclick = () => location.reload();
     }
   };
 
-  ws.onerror = () => {
-    document.getElementById('current-test').innerHTML =
-      '<span style="color:var(--red)">WebSocket connection lost</span>';
+  ws.onclose = () => {
+    if (!benchmarkDone) {
+      _showReconnect('Connection to server lost.');
+    }
   };
+
+  ws.onerror = () => {};
 }
 
 function fmtElapsed(ms) {
