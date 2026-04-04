@@ -1,0 +1,20 @@
+database:
+  dialect: "postgresql+psycopg"
+  port: 5432
+  ssl_mode: "require"
+  driver_options: {}
+
+sqlio:
+  table_rows: 1000000
+  block_size: 8192
+  thread_counts: [1, 4, 8, 16, 32]
+  ops_per_run: 10000
+
+sqliosim:
+  page_size: 8192
+  write_cycles: 10000
+  threads: 16
+
+dsb:
+  scale_factor: 1.0
+  query_timeout_sec: 300

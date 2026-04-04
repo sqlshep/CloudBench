@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CloudBench — Sign In</title>
+<style>
+:root {
+  --bg: #0a0e17; --bg2: #111827; --bg3: #1a2332;
+  --text: #c9d1d9; --text-dim: #8b949e; --text-bright: #f0f6fc;
+  --blue: #3b82f6; --blue-light: #60a5fa; --blue-dark: #1e40af;
+  --green: #3fb950; --cyan: #06b6d4; --red: #f85149;
+  --border: #1e293b;
+  --radius: 12px;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
+  background: var(--bg); color: var(--text); min-height: 100vh;
+  display: flex; align-items: center; justify-content: center;
+}
+.login-card {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 2.5rem 2rem;
+  width: 100%; max-width: 400px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+}
+.login-card h1 {
+  font-size: 1.5rem;
+  color: var(--text-bright);
+  text-align: center;
+  margin-bottom: 0.25rem;
+}
+.login-card .subtitle {
+  text-align: center;
+  color: var(--text-dim);
+  font-size: 0.85rem;
+  margin-bottom: 1.75rem;
+}
+.form-group {
+  margin-bottom: 1.25rem;
+}
+.form-group label {
+  display: block;
+  font-size: 0.8rem;
+  color: var(--text-dim);
+  margin-bottom: 0.35rem;
+  font-weight: 500;
+}
+.form-group input {
+  width: 100%;
+  padding: 0.6rem 0.75rem;
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text-bright);
+  font-size: 0.9rem;
+  outline: none;
+  transition: border-color 0.2s;
+}
+.form-group input:focus {
+  border-color: var(--blue);
+}
+.btn-login {
+  width: 100%;
+  padding: 0.7rem;
+  background: var(--blue);
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s;
+  margin-top: 0.5rem;
+}
+.btn-login:hover { background: var(--blue-light); }
+.btn-login:disabled { opacity: 0.5; cursor: not-allowed; }
+.error-msg {
+  color: var(--red);
+  font-size: 0.82rem;
+  text-align: center;
+  margin-top: 1rem;
+  min-height: 1.2em;
+}
+.back-link {
+  display: block;
+  text-align: center;
+  margin-top: 1.25rem;
+  color: var(--text-dim);
+  font-size: 0.8rem;
+  text-decoration: none;
+}
+.back-link:hover { color: var(--blue-light); }
+.logo {
+  text-align: center;
+  font-size: 2rem;
+  margin-bottom: 0.75rem;
+}
+</style>
+</head>
+<body>
+<div class="login-card">
+  <div class="logo">&#9729;</div>
+  <h1>CloudBench</h1>
+  <p class="subtitle">Sign in to access the benchmark lab</p>
+  <form id="login-form">
+    <div class="form-group">
+      <label for="username">Username</label>
+      <input type="text" id="username" name="username" autocomplete="username" required autofocus>
+    </div>
+    <div class="form-group">
+      <label for="password">Password</label>
+      <input type="password" id="password" name="password" autocomplete="current-password" required>
+    </div>
+    <button type="submit" class="btn-login" id="login-btn">Sign In</button>
+    <div class="error-msg" id="error-msg"></div>
+  </form>
+  <a href="/" class="back-link">&larr; Back to home</a>
+</div>
+<script>
+document.getElementById('login-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const btn = document.getElementById('login-btn');
+  const errEl = document.getElementById('error-msg');
+  errEl.textContent = '';
+  btn.disabled = true;
+  btn.textContent = 'Signing in...';
+  try {
+    const res = await fetch('/api/login', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        username: document.getElementById('username').value,
+        password: document.getElementById('password').value,
+      }),
+    });
+    const data = await res.json();
+    if (data.success) {
+      window.location.href = '/app';
+    } else {
+      errEl.textContent = data.error || 'Invalid credentials';
+    }
+  } catch (err) {
+    errEl.textContent = 'Connection error. Please try again.';
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Sign In';
+  }
+});
+</script>
+</body>
+</html>

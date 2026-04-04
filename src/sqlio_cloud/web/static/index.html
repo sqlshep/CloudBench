@@ -1,0 +1,1891 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CloudBench</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/3.0.3/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/5.0.2/jspdf.plugin.autotable.min.js"></script>
+<style>
+:root {
+  --bg: #0d1117; --bg2: #161b22; --bg3: #21262d; --border: #30363d;
+  --text: #c9d1d9; --text-dim: #8b949e; --text-bright: #f0f6fc;
+  --blue: #58a6ff; --green: #3fb950; --yellow: #d29922; --red: #f85149;
+  --purple: #d2a8ff; --cyan: #39d2c0; --orange: #f0883e;
+  --radius: 12px; --shadow: 0 4px 24px rgba(0,0,0,0.4);
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
+  background: var(--bg); color: var(--text); min-height: 100vh;
+}
+.container { max-width: 960px; margin: 0 auto; padding: 2rem 1.5rem; }
+
+/* Header */
+.header { text-align: center; margin-bottom: 2.5rem; }
+.header h1 { font-size: 2rem; color: var(--blue); margin-bottom: 0.25rem; }
+.header p { color: var(--text-dim); font-size: 0.95rem; }
+.logo { font-size: 2.5rem; margin-bottom: 0.5rem; }
+
+/* Steps indicator */
+.steps { display: flex; justify-content: center; gap: 0; margin-bottom: 2rem; }
+.step-item {
+  display: flex; align-items: center; gap: 0.5rem;
+  padding: 0.5rem 1rem; font-size: 0.85rem; color: var(--text-dim);
+  position: relative;
+}
+.step-item.active { color: var(--blue); font-weight: 600; }
+.step-item.done { color: var(--green); }
+.step-num {
+  width: 28px; height: 28px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 0.8rem; font-weight: 700;
+  border: 2px solid var(--border); background: var(--bg2);
+}
+.step-item.active .step-num { border-color: var(--blue); background: var(--blue); color: var(--bg); }
+.step-item.done .step-num { border-color: var(--green); background: var(--green); color: var(--bg); }
+.step-connector { width: 40px; height: 2px; background: var(--border); align-self: center; }
+.step-connector.done { background: var(--green); }
+
+/* Cards */
+.card {
+  background: var(--bg2); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 1.75rem; margin-bottom: 1.5rem;
+  box-shadow: var(--shadow);
+}
+.card h2 { color: var(--text-bright); font-size: 1.15rem; margin-bottom: 1rem; }
+.card h3 { color: var(--purple); font-size: 1rem; margin: 1.5rem 0 0.75rem; }
+
+/* Forms */
+.form-group { margin-bottom: 1rem; }
+.form-group label { display: block; font-size: 0.85rem; color: var(--text-dim); margin-bottom: 0.3rem; font-weight: 500; }
+.form-group select, .form-group input {
+  width: 100%; padding: 0.6rem 0.75rem; font-size: 0.95rem;
+  background: var(--bg); border: 1px solid var(--border); border-radius: 8px;
+  color: var(--text); outline: none; transition: border-color 0.2s;
+}
+.form-group select:focus, .form-group input:focus { border-color: var(--blue); }
+.form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+
+/* Buttons */
+.btn {
+  padding: 0.65rem 1.5rem; border: none; border-radius: 8px; cursor: pointer;
+  font-size: 0.95rem; font-weight: 600; transition: all 0.2s; display: inline-flex;
+  align-items: center; gap: 0.5rem;
+}
+.btn-primary { background: var(--blue); color: var(--bg); }
+.btn-primary:hover { background: #79c0ff; }
+.btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+.btn-secondary { background: var(--bg3); color: var(--text); }
+.btn-secondary:hover { background: var(--border); }
+.btn-green { background: var(--green); color: var(--bg); }
+.btn-green:hover { opacity: 0.9; }
+.btn-row { display: flex; justify-content: flex-end; gap: 0.75rem; margin-top: 1.25rem; }
+
+/* Status badges */
+.badge { display: inline-block; padding: 0.2rem 0.6rem; border-radius: 20px; font-size: 0.75rem; font-weight: 600; }
+.badge-green { background: rgba(63,185,80,0.15); color: var(--green); }
+.badge-red { background: rgba(248,81,73,0.15); color: var(--red); }
+.badge-yellow { background: rgba(210,153,34,0.15); color: var(--yellow); }
+.badge-blue { background: rgba(88,166,255,0.15); color: var(--blue); }
+
+/* Presets */
+.preset-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1rem; margin-bottom: 1rem; overflow: visible; }
+.preset-card {
+  background: var(--bg); border: 2px solid var(--border); border-radius: 10px;
+  padding: 1.25rem; cursor: pointer; transition: all 0.2s; text-align: center;
+}
+.preset-card:hover { border-color: var(--blue); }
+.preset-card.selected { border-color: var(--blue); background: rgba(88,166,255,0.08); }
+.preset-card h4 { color: var(--text-bright); margin-bottom: 0.25rem; }
+.preset-card .time { color: var(--blue); font-size: 0.85rem; font-weight: 600; }
+.preset-card .desc { color: var(--text-dim); font-size: 0.8rem; margin-top: 0.5rem; }
+
+/* Test checkboxes */
+.test-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; overflow: visible; }
+.test-option {
+  display: flex; align-items: center; gap: 0.5rem; padding: 0.5rem 0.75rem;
+  background: var(--bg); border-radius: 8px; cursor: pointer; font-size: 0.85rem;
+  transition: background 0.15s;
+}
+.test-option:hover { background: var(--bg3); z-index: 10; }
+.test-option input { accent-color: var(--blue); }
+
+/* Progress */
+.progress-list { display: flex; flex-direction: column; gap: 0.75rem; }
+.progress-item { display: flex; align-items: center; gap: 1rem; position: relative; }
+.progress-item .name { flex: 0 0 220px; font-size: 0.9rem; }
+.progress-bar-bg { flex: 1; height: 8px; background: var(--bg3); border-radius: 4px; overflow: hidden; }
+.progress-bar-fill { height: 100%; background: var(--blue); border-radius: 4px; transition: width 0.4s ease; }
+.progress-bar-fill.done { background: var(--green); }
+.progress-item .pct { flex: 0 0 90px; text-align: right; font-size: 0.85rem; color: var(--text-dim); }
+.current-label { color: var(--cyan); font-size: 0.9rem; margin-bottom: 1rem; }
+
+/* Progress tooltips */
+.info-icon { color: var(--text-dim); cursor: help; font-size: 0.85rem; vertical-align: middle; }
+.progress-item.has-tooltip:hover .info-icon { color: var(--cyan); }
+.progress-item.has-tooltip::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  left: 0; top: calc(100% + 6px);
+  width: min(500px, 90vw);
+  padding: 0.6rem 0.8rem;
+  background: var(--bg3);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: 0.78rem;
+  line-height: 1.45;
+  white-space: normal;
+  z-index: 100;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+}
+.progress-item.has-tooltip:hover::after { opacity: 1; }
+
+/* Results */
+.result-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1.25rem; }
+.metric-card {
+  background: var(--bg); border: 1px solid var(--border); border-radius: 10px; padding: 1.25rem;
+}
+.metric-card .label { font-size: 0.8rem; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.05em; }
+.metric-card .has-tooltip { border-bottom: 1px dotted var(--text-dim); }
+.metric-card .value { font-size: 1.75rem; font-weight: 700; color: var(--text-bright); margin: 0.25rem 0; }
+.metric-card .sub { font-size: 0.8rem; color: var(--text-dim); }
+
+.results-table { width: 100%; border-collapse: collapse; margin-top: 0.75rem; font-size: 0.85rem; }
+.results-table th, .results-table td { padding: 0.5rem 0.75rem; border-bottom: 1px solid var(--border); text-align: left; }
+.results-table th { color: var(--blue); font-weight: 600; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.04em; }
+.results-table tr:hover { background: rgba(88,166,255,0.04); }
+
+.chart-container { position: relative; height: 280px; margin-top: 1rem; }
+
+/* Connection status */
+.conn-status { display: flex; align-items: center; gap: 0.75rem; padding: 1rem; background: var(--bg); border-radius: 8px; margin-bottom: 1rem; }
+.conn-dot { width: 10px; height: 10px; border-radius: 50%; }
+.conn-dot.ok { background: var(--green); box-shadow: 0 0 8px var(--green); }
+.conn-dot.fail { background: var(--red); box-shadow: 0 0 8px var(--red); }
+.conn-dot.testing { background: var(--yellow); animation: pulse 1s infinite; }
+@keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.4; } }
+.conn-info { flex: 1; font-size: 0.9rem; }
+.conn-info .detail { color: var(--text-dim); font-size: 0.8rem; }
+
+.error-box { background: rgba(248,81,73,0.1); border: 1px solid var(--red); border-radius: 8px; padding: 1rem; margin: 1rem 0; }
+.error-box h4 { color: var(--red); margin-bottom: 0.5rem; }
+.error-box pre { font-size: 0.8rem; color: var(--text-dim); white-space: pre-wrap; }
+
+/* Section tabs */
+.tabs { display: flex; gap: 0; border-bottom: 1px solid var(--border); margin-bottom: 1.5rem; }
+.tab {
+  padding: 0.6rem 1.25rem; cursor: pointer; font-size: 0.9rem; font-weight: 500;
+  color: var(--text-dim); border-bottom: 2px solid transparent; transition: all 0.2s;
+}
+.tab:hover { color: var(--text); }
+.tab.active { color: var(--blue); border-bottom-color: var(--blue); }
+.tab-panel { display: none; }
+.tab-panel.active { display: block; }
+
+.hidden { display: none !important; }
+
+/* Tooltips */
+.has-tooltip { position: relative; cursor: help; }
+.has-tooltip .tooltip {
+  visibility: hidden; opacity: 0; position: absolute; z-index: 100;
+  bottom: calc(100% + 8px); left: 50%; transform: translateX(-50%);
+  background: var(--bg3); color: var(--text); border: 1px solid var(--border);
+  border-radius: 8px; padding: 0.7rem 1rem; font-size: 0.78rem; font-weight: 400;
+  line-height: 1.5; width: max-content; max-width: 480px;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.5); pointer-events: none;
+  transition: opacity 0.15s, visibility 0.15s; text-transform: none; letter-spacing: 0;
+}
+.has-tooltip .tooltip::after {
+  content: ''; position: absolute; top: 100%; left: 50%; transform: translateX(-50%);
+  border: 6px solid transparent; border-top-color: var(--bg3);
+}
+.has-tooltip:hover .tooltip { visibility: visible; opacity: 1; }
+
+/* Spinner */
+.spinner { display: inline-block; width: 18px; height: 18px; border: 2px solid var(--border);
+  border-top-color: var(--blue); border-radius: 50%; animation: spin 0.6s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+</style>
+</head>
+<body>
+
+<div class="container">
+  <div class="header">
+    <div class="logo">&#9889;</div>
+    <h1>CloudBench</h1>
+    <p>Cloud Database Performance Test Suite</p>
+  </div>
+
+  <!-- Step Indicator -->
+  <div class="steps" id="steps">
+    <div class="step-item active" data-step="1"><span class="step-num">1</span> Connect</div>
+    <div class="step-connector"></div>
+    <div class="step-item" data-step="2"><span class="step-num">2</span> Configure</div>
+    <div class="step-connector"></div>
+    <div class="step-item" data-step="3"><span class="step-num">3</span> Run</div>
+    <div class="step-connector"></div>
+    <div class="step-item" data-step="4"><span class="step-num">4</span> Results</div>
+  </div>
+
+  <!-- STEP 1: Connect -->
+  <div id="step-1" class="step-panel">
+    <div class="card">
+      <h2>Connect to Your Database</h2>
+      <div class="form-group">
+        <label>Database Type</label>
+        <select id="db-type"></select>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Hostname</label>
+          <input type="text" id="host" placeholder="mydb.database.windows.net">
+          <div id="host-hint" style="font-size:0.72rem;color:var(--text-dim);margin-top:0.25rem"></div>
+        </div>
+        <div class="form-group">
+          <label>Port</label>
+          <input type="number" id="port" value="5432">
+        </div>
+      </div>
+      <div class="form-group">
+        <label>Database Name</label>
+        <input type="text" id="database" value="benchmarks">
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Username</label>
+          <input type="text" id="username" placeholder="admin">
+        </div>
+        <div class="form-group">
+          <label>Password</label>
+          <input type="password" id="password">
+        </div>
+      </div>
+
+      <div id="host-ip-bar" style="background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:0.65rem 1rem;margin-bottom:1rem;font-size:0.82rem;display:flex;align-items:center;gap:0.6rem">
+        <span style="color:var(--text-dim)">CloudBench IP address:</span>
+        <span id="host-ip" style="color:var(--blue);font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-weight:600">detecting...</span>
+        <span style="color:var(--text-dim);font-size:0.75rem">— add this to your database firewall rules</span>
+      </div>
+
+      <div id="gcp-guidance" class="hidden" style="background:rgba(88,166,255,0.08);border:1px solid rgba(88,166,255,0.25);border-radius:8px;padding:1rem 1.2rem;margin-bottom:1rem;font-size:0.82rem;line-height:1.6;color:var(--text)">
+        <div style="font-weight:600;color:var(--blue);margin-bottom:0.4rem">Google Cloud SQL — Setup Required</div>
+        <ol style="margin:0;padding-left:1.2rem;color:var(--text-dim)">
+          <li>Enable <strong style="color:var(--text)">Public IP</strong> on your instance (GCP Console → SQL → Instance → Connections → Networking → Public IP → Enable).</li>
+          <li>Add the CloudBench IP to <strong style="color:var(--text)">Authorized networks</strong> (GCP Console → SQL → Instance → Connections → Networking → Authorized networks → Add a network). Enter the CloudBench IP shown above, or <code>0.0.0.0/0</code> for a throwaway test instance.</li>
+          <li>Use the <strong style="color:var(--text)">Public IP address</strong> as the hostname (e.g., <code style="color:var(--cyan)">34.26.137.105</code>). Do <strong style="color:var(--text)">not</strong> use the connection name (<code>project:region:instance</code>) — that is for the Cloud SQL Auth Proxy only.</li>
+          <li>If <strong style="color:var(--text)">SSL is required</strong> on your instance, CloudBench handles it automatically — no client certificate is needed.</li>
+          <li>You do <strong style="color:var(--text)">not</strong> need to create the database ahead of time. If the database name you enter does not exist, CloudBench will create it automatically when you test the connection.</li>
+        </ol>
+      </div>
+
+      <div id="mi-guidance" class="hidden" style="background:rgba(88,166,255,0.08);border:1px solid rgba(88,166,255,0.25);border-radius:8px;padding:1rem 1.2rem;margin-bottom:1rem;font-size:0.82rem;line-height:1.6;color:var(--text)">
+        <div style="font-weight:600;color:var(--blue);margin-bottom:0.4rem">Azure SQL Managed Instance — Setup Required</div>
+        <ol style="margin:0;padding-left:1.2rem;color:var(--text-dim)">
+          <li>Enable the <strong style="color:var(--text)">public endpoint</strong> on your MI (Portal → MI → Security → Networking → Public endpoint → Enable). This can take 5–10 minutes to provision.</li>
+          <li>Add an <strong style="color:var(--text)">NSG inbound rule</strong> allowing TCP on port <strong style="color:var(--text)">3342</strong> from the CloudBench IP shown above (or from <code>0.0.0.0/0</code> if this is a throwaway test instance).</li>
+          <li>Use the <strong style="color:var(--text)">public hostname</strong> — it has <code>.public.</code> in it:<br>
+            <code style="color:var(--cyan)">yourmi<strong>.public.</strong>abc123.database.windows.net</code><br>
+            The default hostname from the portal (without <code>.public.</code>) is the private VNet endpoint and will not work.</li>
+          <li>Port is <strong style="color:var(--text)">3342</strong> (not 1433). This has been set automatically.</li>
+          <li>You do <strong style="color:var(--text)">not</strong> need to create the database ahead of time. If the database name you enter does not exist, CloudBench will create it automatically when you test the connection.</li>
+        </ol>
+      </div>
+
+      <div id="conn-status" class="conn-status hidden">
+        <div class="conn-dot" id="conn-dot"></div>
+        <div class="conn-info">
+          <div id="conn-msg">Testing connection...</div>
+          <div class="detail" id="conn-detail"></div>
+        </div>
+      </div>
+      <div id="conn-error" class="error-box hidden">
+        <h4>Connection Failed</h4>
+        <pre id="conn-error-text"></pre>
+      </div>
+
+      <div class="btn-row">
+        <button class="btn btn-secondary" id="btn-test-conn">Test Connection</button>
+        <button class="btn btn-primary" id="btn-next-1" disabled>Next &rarr;</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- STEP 2: Configure -->
+  <div id="step-2" class="step-panel hidden">
+    <div class="card">
+      <h2>Choose Your Benchmark</h2>
+      <div class="preset-grid">
+        <div class="preset-card has-tooltip" data-preset="smoke" onclick="selectPreset('smoke')">
+          <h4>Smoke Test</h4>
+          <div class="time">~5–15 minutes</div>
+          <div class="desc">Quick sanity check with minimal load</div>
+          <span class="tooltip">2K-row test table, 100 operations per I/O test, 2-point thread sweep. Runs: random reads, random writes, SHA-256 integrity verification, and 2 representative analytical queries (Q01 pricing summary, Q06 revenue forecast). Enough to validate connectivity, basic IOPS, latency floor, and query compilation. Execution time depends on network RTT and instance tier — expect 5 min on premium instances, up to 15 min on Basic/Burstable tiers with high-latency links.</span>
+        </div>
+        <div class="preset-card has-tooltip selected" data-preset="standard" onclick="selectPreset('standard')">
+          <h4>Standard</h4>
+          <div class="time">~20-60 minutes</div>
+          <div class="desc">Balanced coverage of all test types</div>
+          <span class="tooltip">10K-row test table, 500 ops per I/O test, 3-point concurrency sweep. Runs every I/O test (random read, random write, sequential scan, mixed 70/30, bulk insert), SHA-256 integrity stress, concurrent transaction isolation (balance conservation), all 16 analytical queries at Scale Factor 0.01, and full network profiling (DNS, ping, connection setup, first-byte, bidirectional bandwidth). Produces a comprehensive baseline suitable for tier comparison, capacity planning, and SLA validation. Time variance reflects instance size: 20 min on General Purpose or higher, up to 60 min on low-DTU/Burstable tiers.</span>
+        </div>
+        <div class="preset-card has-tooltip" data-preset="full" onclick="selectPreset('full')">
+          <h4>Full Stress</h4>
+          <div class="time">~60 minutes</div>
+          <div class="desc">Comprehensive with maximum concurrency</div>
+          <span class="tooltip">50K-row test table, 2000 ops per I/O test, 6-point concurrency sweep (1 → 2 → 4 → 8 → 16 → 32 threads). Includes everything in Standard plus: isolation level anomaly testing (dirty reads, phantom reads, write skew under each isolation level), connection pool stress (burst concurrency 1 → 200), and analytical queries at SF 0.05 with 2 iterations for variance measurement. Designed for production-grade assessments, cloud tier selection, and regression testing. Expect ~60 min on mid-tier instances; may run longer on constrained tiers.</span>
+        </div>
+      </div>
+
+      <h3 class="has-tooltip" style="display:inline-block">Tests Included
+        <span class="tooltip">Select which test categories to run. Each test exercises a different database subsystem: I/O tests measure storage-layer throughput and latency scaling; Stress tests verify ACID correctness and concurrency handling under load; Analytical tests benchmark the query optimizer and execution engine on complex joins and aggregations; Network tests isolate the transport layer from the database engine. Hover over individual test names below for detailed methodology descriptions.</span>
+      </h3>
+      <div class="test-grid" id="test-grid"></div>
+
+      <h3 class="has-tooltip" style="display:inline-block">I/O Block Size
+        <span class="tooltip">The size of the random binary payload (VARBINARY/BYTEA) stored in each row of the I/O test table. At 1KB–4KB, the workload is IOPS-bound: network RTT and index seek dominate, and throughput (MB/s) will be low even at high IOPS. At 8KB (the default, matching common database page sizes), you balance IOPS and bandwidth measurement. At 64KB+, the workload becomes throughput-bound: fewer ops/sec but higher MB/s, stressing buffer pool, TLS framing, and TCP window scaling. This size is also used as the page size for SHA-256 integrity verification.</span>
+      </h3>
+      <div class="form-group" style="max-width:320px">
+        <select id="block-size">
+          <option value="1024">1 KB</option>
+          <option value="4096">4 KB</option>
+          <option value="8192" selected>8 KB (default)</option>
+          <option value="16384">16 KB</option>
+          <option value="32768">32 KB</option>
+          <option value="65536">64 KB</option>
+          <option value="262144">256 KB</option>
+          <option value="1048576">1 MB</option>
+        </select>
+        <div style="font-size:0.8rem;color:var(--text-dim);margin-top:0.35rem">
+          Size of each read/write payload. 8 KB = SQL Server page size. Smaller values stress IOPS, larger values stress throughput.
+        </div>
+      </div>
+
+      <div class="btn-row">
+        <button class="btn btn-secondary" onclick="goStep(1)">&larr; Back</button>
+        <button class="btn btn-green" id="btn-start">Start Benchmark &rarr;</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- STEP 3: Running -->
+  <div id="step-3" class="step-panel hidden">
+    <div class="card">
+      <h2>Benchmark Running</h2>
+      <div class="current-label" id="current-test">Initializing...</div>
+      <div class="progress-list" id="progress-list"></div>
+    </div>
+  </div>
+
+  <!-- STEP 4: Results -->
+  <div id="step-4" class="step-panel hidden">
+    <div class="card" style="padding-bottom:0.5rem">
+      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:0.5rem">
+        <h2 style="margin:0">Benchmark Results</h2>
+        <div style="display:flex;gap:0.5rem">
+          <button class="btn btn-primary" onclick="exportPDF()" style="padding:0.35rem 0.9rem;font-size:0.82rem">Download PDF Report</button>
+          <button class="btn btn-secondary" onclick="exportCSV()" style="padding:0.35rem 0.9rem;font-size:0.82rem">Export CSV</button>
+          <button class="btn btn-secondary" onclick="exportJSON()" style="padding:0.35rem 0.9rem;font-size:0.82rem">Export JSON</button>
+        </div>
+      </div>
+      <div class="tabs" id="result-tabs">
+        <div class="tab active" data-tab="overview" onclick="switchTab('overview')">Overview</div>
+        <div class="tab" data-tab="sqlio" onclick="switchTab('sqlio')">I/O</div>
+        <div class="tab" data-tab="sqliosim" onclick="switchTab('sqliosim')">Stress</div>
+        <div class="tab" data-tab="dsb" onclick="switchTab('dsb')">Analytical</div>
+        <div class="tab" data-tab="network" onclick="switchTab('network')">Network</div>
+      </div>
+    </div>
+
+    <div id="tab-overview" class="tab-panel active"></div>
+    <div id="tab-sqlio" class="tab-panel"></div>
+    <div id="tab-sqliosim" class="tab-panel"></div>
+    <div id="tab-dsb" class="tab-panel"></div>
+    <div id="tab-network" class="tab-panel"></div>
+  </div>
+</div>
+
+<script>
+const ALL_TESTS = [
+  {id:'random_read',  label:'Random Read I/O',       group:'I/O',
+   tip:'Executes SELECT payload FROM table WHERE id = :random_pk across a scaling thread sweep to build a concurrency-vs-throughput curve. Measures: IOPS, p50/p99 latency, jitter, optimal thread count, saturation point, and Amdahl\'s serial fraction. This is the fundamental cloud database performance primitive — equivalent to 4KB random read IOPS on block storage.'},
+  {id:'random_write', label:'Random Write I/O',      group:'I/O',
+   tip:'Executes UPDATE table SET payload = :data WHERE id = :random_pk under increasing concurrency. Measures write IOPS, latency distribution, and lock contention scaling. Writes are typically 2–5× slower than reads due to: WAL/redo log synchronous flush, row lock acquisition, page modification, and index maintenance. The serial fraction here reveals WAL serialization overhead.'},
+  {id:'seq_scan',     label:'Sequential Scan',       group:'I/O',
+   tip:'Full table scan (SELECT * FROM test_table) measuring sequential read bandwidth in MB/s. Tests buffer pool read-ahead efficiency, result set streaming, and network download throughput. Unlike random I/O (latency-bound), sequential scan is bandwidth-bound — useful for comparing against your tier\'s documented sequential throughput limit.'},
+  {id:'mixed',        label:'Mixed Read/Write',      group:'I/O',
+   tip:'70% point reads / 30% single-row UPDATEs running concurrently across threads, simulating a realistic OLTP workload. The read/write interference factor (mixed IOPS ÷ pure read IOPS) quantifies how much write locks, WAL flushes, and buffer pool page invalidation degrade concurrent read performance. A ratio below 0.6 suggests significant write-path contention.'},
+  {id:'bulk_insert',  label:'Bulk Insert',           group:'I/O',
+   tip:'Multi-row INSERT statements measuring sustained write ingestion speed. Performance is governed by: transaction log write bandwidth, B-tree page splits, index maintenance overhead, auto-statistics triggers, and checkpoint interference. Directly relevant to ETL pipelines, CDC replication, and event ingestion workloads. Compare against your tier\'s documented write IOPS and log throughput limits.'},
+  {id:'integrity',    label:'Data Integrity Stress', group:'Stress',
+   tip:'Writes random binary pages (configurable block size) with SHA-256 checksums under concurrent thread load, then reads a statistical sample back and recomputes hashes to verify bit-level correctness. Detects: storage-layer silent corruption, network transport bit flips (beyond TLS/TCP checksums), driver serialization bugs, and encoding issues. Any FAIL should be treated as a P0 incident and escalated to the cloud provider.'},
+  {id:'concurrency',  label:'Concurrent Transactions',group:'Stress',
+   tip:'Executes concurrent balance-transfer transactions (debit account A, credit account B in a single transaction) and verifies SUM(all_balances) is conserved post-test. Reports: TPS, commit success rate, deadlock count, commit latency percentiles, and balance drift. Tests the database\'s ACID guarantees under realistic contention — detects lost updates, write skew, and serialization anomalies.'},
+  {id:'isolation',    label:'Isolation Level Tests',  group:'Stress',
+   tip:'Systematically tests each supported isolation level (READ UNCOMMITTED → SERIALIZABLE) by running known anomaly patterns and checking whether the database correctly prevents them: dirty reads, non-repeatable reads, phantom inserts, and write skew. Validates that the database\'s actual behavior matches its documented isolation guarantees.'},
+  {id:'dsb',          label:'Analytical Queries',    group:'Analytical',
+   tip:'Generates a normalized star-schema dataset (zones, countries, vendors, buyers, products, inventory, orders, order details) and executes 16 complex analytical queries involving: multi-way hash/merge joins, correlated subqueries, aggregation with HAVING, EXISTS/NOT EXISTS, CASE expressions, and ORDER BY with LIMIT. Reports per-query duration, result preview, geometric mean, and power score. Tests the query optimizer\'s ability to choose efficient execution plans.'},
+  {id:'pool_stress',  label:'Connection Pool Stress', group:'I/O',
+   tip:'Fires bursts of SELECT 1 queries at escalating concurrency (1 → 5 → 10 → 20 → … → 200 concurrent connections) to map the connection pool\'s latency-vs-concurrency curve. Identifies: the concurrency level where connection checkout latency spikes (pool saturation), the point where connections are refused (pool exhaustion), and per-burst p50/p99 latency. Use to size your application\'s max_pool_size and detect cloud-imposed connection limits.'},
+  {id:'net_latency',  label:'Network Latency',       group:'Network',
+   tip:'Comprehensive network path profiling: DNS resolution time (detects slow resolvers/CNAME chains), TCP+TLS connection setup latency (handshake overhead), SELECT 1 ping distribution (irreducible floor latency), first-byte latency (query compilation + initial I/O), and bidirectional bandwidth (bulk INSERT upload, bulk SELECT download in MB/s). Essential for distinguishing network-bound vs. compute-bound performance limits.'},
+];
+
+let selectedPreset = 'standard';
+let presets = {};
+let dbTypes = [];
+let connValid = false;
+let ws = null;
+let benchmarkResults = null;
+
+async function init() {
+  const [dtRes, prRes] = await Promise.all([
+    fetch('/api/db-types').then(r=>r.json()),
+    fetch('/api/presets').then(r=>r.json()),
+  ]);
+  dbTypes = dtRes.types;
+  presets = prRes;
+
+  const sel = document.getElementById('db-type');
+  dbTypes.forEach(t => {
+    const o = document.createElement('option');
+    o.value = t.name; o.textContent = t.name;
+    sel.appendChild(o);
+  });
+  function updateHostHints() {
+    const v = sel.value;
+    const hostInput = document.getElementById('host');
+    const hostHint = document.getElementById('host-hint');
+    const miPanel = document.getElementById('mi-guidance');
+    const gcpPanel = document.getElementById('gcp-guidance');
+
+    if (v.startsWith('Google Cloud SQL')) {
+      hostInput.placeholder = '34.26.137.105';
+      hostHint.textContent = 'Use the Public IP address from GCP Console — not the connection name (project:region:instance)';
+    } else if (v === 'Azure SQL Managed Instance') {
+      hostInput.placeholder = 'yourmi.public.abc123.database.windows.net';
+      hostHint.textContent = 'Use the public hostname (with .public. in it) — see the setup guide below';
+    } else if (v.startsWith('Azure')) {
+      hostInput.placeholder = 'myserver.database.windows.net';
+      hostHint.textContent = '';
+    } else if (v.startsWith('Amazon')) {
+      hostInput.placeholder = 'mydb.abc123.us-east-1.rds.amazonaws.com';
+      hostHint.textContent = '';
+    } else {
+      hostInput.placeholder = 'hostname or IP address';
+      hostHint.textContent = '';
+    }
+
+    miPanel.classList.toggle('hidden', v !== 'Azure SQL Managed Instance');
+    gcpPanel.classList.toggle('hidden', !v.startsWith('Google Cloud SQL'));
+  }
+
+  sel.addEventListener('change', () => {
+    const dt = dbTypes.find(t => t.name === sel.value);
+    if (dt) document.getElementById('port').value = dt.default_port;
+    updateHostHints();
+  });
+  updateHostHints();
+
+  fetch('/api/host-ip').then(r => r.json()).then(d => {
+    document.getElementById('host-ip').textContent = d.ip || 'unable to detect';
+  }).catch(() => {
+    document.getElementById('host-ip').textContent = 'unable to detect';
+  });
+
+  renderTestGrid();
+  selectPreset('standard');
+}
+
+function renderTestGrid() {
+  const grid = document.getElementById('test-grid');
+  grid.innerHTML = ALL_TESTS.map(t => `
+    <label class="test-option has-tooltip">
+      <input type="checkbox" value="${t.id}" data-test="${t.id}"> ${t.label}
+      <span class="badge badge-blue">${t.group}</span>
+      <span class="tooltip">${t.tip}</span>
+    </label>
+  `).join('');
+}
+
+function selectPreset(name) {
+  selectedPreset = name;
+  document.querySelectorAll('.preset-card').forEach(c => c.classList.toggle('selected', c.dataset.preset === name));
+  const tests = presets[name]?.tests || [];
+  document.querySelectorAll('#test-grid input').forEach(cb => {
+    cb.checked = tests.includes(cb.value);
+  });
+}
+
+function getSelectedTests() {
+  return Array.from(document.querySelectorAll('#test-grid input:checked')).map(cb => cb.value);
+}
+
+function goStep(n) {
+  document.querySelectorAll('.step-panel').forEach(p => p.classList.add('hidden'));
+  document.getElementById('step-'+n).classList.remove('hidden');
+  document.querySelectorAll('.step-item').forEach(s => {
+    const sn = parseInt(s.dataset.step);
+    s.classList.toggle('active', sn === n);
+    s.classList.toggle('done', sn < n);
+  });
+  document.querySelectorAll('.step-connector').forEach((c,i) => {
+    c.classList.toggle('done', i < n-1);
+  });
+}
+
+document.getElementById('btn-test-conn').addEventListener('click', async () => {
+  const statusEl = document.getElementById('conn-status');
+  const dot = document.getElementById('conn-dot');
+  const msg = document.getElementById('conn-msg');
+  const detail = document.getElementById('conn-detail');
+  const errBox = document.getElementById('conn-error');
+
+  statusEl.classList.remove('hidden');
+  errBox.classList.add('hidden');
+  dot.className = 'conn-dot testing';
+  msg.textContent = 'Testing connection...';
+  detail.textContent = '';
+  const oldDbNote = statusEl.querySelector('[data-db-created]');
+  if (oldDbNote) oldDbNote.remove();
+  document.getElementById('btn-next-1').disabled = true;
+  connValid = false;
+
+  try {
+    const res = await fetch('/api/validate', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({
+        db_type: document.getElementById('db-type').value,
+        host: document.getElementById('host').value,
+        port: parseInt(document.getElementById('port').value),
+        database: document.getElementById('database').value,
+        username: document.getElementById('username').value,
+        password: document.getElementById('password').value,
+      }),
+    });
+    const data = await res.json();
+
+    if (data.success) {
+      dot.className = 'conn-dot ok';
+      msg.textContent = data.database_created
+        ? `Connected — database "${data.database_name}" was created automatically`
+        : 'Connected!';
+      detail.textContent = `Server: ${data.server_version?.substring(0,80)} | Ping: ${data.ping_ms} ms | Max connections: ${data.max_connections}`;
+      if (data.database_created) {
+        const dbNote = document.createElement('div');
+        dbNote.setAttribute('data-db-created', '1');
+        dbNote.style.cssText = 'margin-top:0.5rem;padding:0.5rem 0.75rem;background:rgba(63,185,80,0.1);border:1px solid rgba(63,185,80,0.3);border-radius:6px;font-size:0.8rem;color:var(--green)';
+        dbNote.innerHTML = `&#9889; Database <strong>${data.database_name}</strong> did not exist and was created for you. It will be used for all benchmark tests.`;
+        statusEl.appendChild(dbNote);
+      }
+      document.getElementById('btn-next-1').disabled = false;
+      connValid = true;
+    } else {
+      dot.className = 'conn-dot fail';
+      msg.textContent = 'Connection failed';
+      detail.textContent = '';
+      errBox.classList.remove('hidden');
+      document.getElementById('conn-error-text').textContent = (data.error||'') + '\n\n' + (data.advice||'');
+    }
+  } catch(e) {
+    dot.className = 'conn-dot fail';
+    msg.textContent = 'Could not reach the server';
+    detail.textContent = 'Is the CloudBench web server running?';
+  }
+});
+
+document.getElementById('btn-next-1').addEventListener('click', () => { if (connValid) goStep(2); });
+
+document.getElementById('btn-start').addEventListener('click', () => {
+  const tests = getSelectedTests();
+  if (tests.length === 0) { alert('Select at least one test'); return; }
+  goStep(3);
+  startBenchmark(tests);
+});
+
+function startBenchmark(tests) {
+  const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
+  ws = new WebSocket(`${protocol}//${location.host}/ws/benchmark`);
+
+  ws.onopen = () => {
+    ws.send(JSON.stringify({
+      db_type: document.getElementById('db-type').value,
+      host: document.getElementById('host').value,
+      port: parseInt(document.getElementById('port').value),
+      database: document.getElementById('database').value,
+      username: document.getElementById('username').value,
+      password: document.getElementById('password').value,
+      preset: selectedPreset,
+      tests: tests,
+      block_size: parseInt(document.getElementById('block-size').value),
+    }));
+  };
+
+  const progressMap = {};
+  const progressTimes = {};
+  ws.onmessage = (ev) => {
+    const msg = JSON.parse(ev.data);
+
+    if (msg.type === 'progress') {
+      document.getElementById('current-test').textContent = msg.current_test || 'Running...';
+      (msg.progress||[]).forEach(p => {
+        if (!(p.test in progressTimes)) progressTimes[p.test] = Date.now();
+        progressMap[p.test] = p.pct;
+      });
+      renderProgress(progressMap, progressTimes);
+    }
+
+    if (msg.type === 'complete') {
+      benchmarkResults = msg.results;
+      goStep(4);
+      renderResults(msg.results);
+    }
+
+    if (msg.type === 'error') {
+      document.getElementById('current-test').innerHTML =
+        `<span style="color:var(--red)">Error: ${msg.error}</span>`;
+      if (msg.advice) {
+        document.getElementById('progress-list').innerHTML =
+          `<div class="error-box"><h4>What to do</h4><pre>${msg.advice}</pre></div>`;
+      }
+    }
+  };
+
+  ws.onerror = () => {
+    document.getElementById('current-test').innerHTML =
+      '<span style="color:var(--red)">WebSocket connection lost</span>';
+  };
+}
+
+function fmtElapsed(ms) {
+  const s = Math.floor(ms / 1000);
+  if (s < 60) return `${s}s`;
+  const m = Math.floor(s / 60);
+  return `${m}m ${s % 60}s`;
+}
+
+const PROGRESS_TIPS = {
+  'Setting up test table': 'Creates and populates the test table with random binary payloads used by the I/O benchmarks.',
+  'I/O: Random Reads': ALL_TESTS.find(t=>t.id==='random_read')?.tip || '',
+  'I/O: Random Writes': ALL_TESTS.find(t=>t.id==='random_write')?.tip || '',
+  'I/O: Sequential Scan': ALL_TESTS.find(t=>t.id==='seq_scan')?.tip || '',
+  'I/O: Mixed Workload': ALL_TESTS.find(t=>t.id==='mixed')?.tip || '',
+  'I/O: Bulk Insert': ALL_TESTS.find(t=>t.id==='bulk_insert')?.tip || '',
+  'Stress: Integrity': ALL_TESTS.find(t=>t.id==='integrity')?.tip || '',
+  'Stress: Concurrency': ALL_TESTS.find(t=>t.id==='concurrency')?.tip || '',
+  'Stress: Isolation': ALL_TESTS.find(t=>t.id==='isolation')?.tip || '',
+  'Analytical Queries': ALL_TESTS.find(t=>t.id==='dsb')?.tip || '',
+  'Pool Stress': ALL_TESTS.find(t=>t.id==='pool_stress')?.tip || '',
+  'Network: Profiling': ALL_TESTS.find(t=>t.id==='net_latency')?.tip || '',
+};
+
+function renderProgress(map, times) {
+  const list = document.getElementById('progress-list');
+  const now = Date.now();
+  const entries = Object.entries(map);
+  list.innerHTML = entries.map(([name, pct]) => {
+    const started = times[name];
+    const elapsed = started ? fmtElapsed(now - started) : '';
+    const done = pct >= 100;
+    const totalTime = done && started ? fmtElapsed((times[name + '_done'] || now) - started) : elapsed;
+    if (done && !times[name + '_done']) times[name + '_done'] = now;
+    const tip = PROGRESS_TIPS[name] || '';
+    const esc = tip.replace(/"/g, '&quot;');
+    return `
+    <div class="progress-item${tip ? ' has-tooltip' : ''}" ${tip ? `data-tooltip="${esc}"` : ''}>
+      <span class="name">${name}${tip ? ' <span class="info-icon">&#9432;</span>' : ''}</span>
+      <div class="progress-bar-bg"><div class="progress-bar-fill ${done?'done':''}" style="width:${pct}%"></div></div>
+      <span class="pct" style="flex:0 0 80px;text-align:right;font-size:0.8rem;color:${done?'var(--green)':'var(--text-dim)'}">${done ? totalTime : elapsed} ${pct}%</span>
+    </div>`;
+  }).join('');
+}
+
+/* ---- RESULTS RENDERING ---- */
+
+function switchTab(name) {
+  document.querySelectorAll('#result-tabs .tab').forEach(t => t.classList.toggle('active', t.dataset.tab===name));
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+  document.getElementById('tab-'+name).classList.add('active');
+}
+
+function configSummary(cfg) {
+  if (!cfg || !Object.keys(cfg).length) return '';
+  const parts = [];
+  if (cfg.table_rows) parts.push(fmtNum(cfg.table_rows)+' rows');
+  if (cfg.total_rows) parts.push(fmtNum(cfg.total_rows)+' rows');
+  if (cfg.num_ops) parts.push(fmtNum(cfg.num_ops)+' ops');
+  if (cfg.num_threads) parts.push(cfg.num_threads+' threads');
+  if (cfg.num_transactions) parts.push(fmtNum(cfg.num_transactions)+' txns');
+  if (cfg.num_cycles) parts.push(fmtNum(cfg.num_cycles)+' cycles');
+  if (cfg.write_threads) parts.push(cfg.write_threads+' write threads');
+  if (cfg.account_count) parts.push(fmtNum(cfg.account_count)+' accounts');
+  if (cfg.block_size) parts.push((cfg.block_size/1024).toFixed(0)+' KB blocks');
+  if (cfg.page_size) parts.push((cfg.page_size/1024).toFixed(0)+' KB pages');
+  if (cfg.total_data_mb) parts.push(cfg.total_data_mb+' MB data');
+  if (cfg.batch_size) parts.push('batch '+fmtNum(cfg.batch_size));
+  if (cfg.iterations) parts.push(cfg.iterations+' iterations');
+  if (cfg.read_pct) parts.push(cfg.read_pct+'% reads');
+  if (cfg.ops_per_burst) parts.push(fmtNum(cfg.ops_per_burst)+' ops/burst');
+  if (cfg.verify_sample_pct) parts.push((cfg.verify_sample_pct*100).toFixed(0)+'% verify');
+  if (!parts.length) return '';
+  return `<p style="margin:0.25rem 0 0.75rem;color:#8b949e;font-size:0.85rem">${parts.join(' &middot; ')}</p>`;
+}
+
+function rateIOPS(v, testName) {
+  if (testName === 'sequential_scan' || testName === 'bulk_write') {
+    return v>50000?'EXCELLENT':v>10000?'GOOD':v>1000?'FAIR':'LOW';
+  }
+  if (testName === 'mixed_workload') {
+    return v>2000?'EXCELLENT':v>500?'GOOD':v>100?'FAIR':'LOW';
+  }
+  return v>2000?'EXCELLENT':v>500?'GOOD':v>100?'FAIR':'LOW';
+}
+function rateLatency(v) { return v<5?'EXCELLENT':v<20?'GOOD':v<100?'FAIR':'HIGH'; }
+function badgeColor(r) { return r==='EXCELLENT'||r==='GOOD'||r==='PASS'?'green':r==='FAIR'?'yellow':'red'; }
+
+const TIPS = {
+  'IOPS': 'I/O Operations Per Second — the number of discrete SQL operations (SELECT or UPDATE of a single row by PK) completed per wall-clock second across all threads. Directly analogous to random-access IOPS on block storage. Bounded by: network RTT, connection pool depth, lock contention, and backend I/O subsystem. Compare against your cloud tier\'s documented IOPS limit to determine if you\'re hitting the ceiling.',
+  'Throughput': 'Aggregate data transfer rate (MB/s) measured at the application layer. Calculated as (block_size × completed_ops) / elapsed_time. Factors in serialization overhead, TLS framing, and TCP windowing. Compare with your cloud provider\'s documented network bandwidth per vCPU to identify NIC saturation vs. storage bottlenecks.',
+  'p50 Latency': 'Median (50th percentile) operation latency in ms. Half of all operations complete faster. This represents the steady-state experience. On cloud databases, p50 is dominated by: network RTT + query plan compilation (if not cached) + index seek + page read from buffer pool. A p50 that matches your measured ping latency means zero server-side queueing.',
+  'p99 Latency': '99th percentile latency — only 1 in 100 operations exceeds this. Tail latency is typically caused by: GC pauses on the database VM, log flush waits, lock escalation, buffer pool misses forcing storage I/O, or cloud provider noisy-neighbor throttling. A p99 > 10× p50 signals serious tail-latency variance worth investigating.',
+  'Jitter': 'Mean absolute difference between consecutive latency measurements (ms). Low jitter (< 1ms) indicates stable, predictable scheduling. High jitter suggests: OS-level context switching, VM CPU steal time, variable network path latency (common in multi-AZ deployments), or storage I/O scheduler reordering. Critical for latency-sensitive workloads with SLA guarantees.',
+  'Error Rate': 'Fraction of operations that raised an exception (timeout, connection reset, deadlock abort, etc.) as a percentage of total attempted. On well-provisioned cloud databases this should be < 0.1%. Rates above 1% typically indicate: connection pool exhaustion, exceeding DTU/vCore limits, hitting max_connections, or aggressive query timeouts.',
+  'Saturation': 'The thread count at which IOPS stops increasing (throughput plateaus within 5%). Beyond this point, adding concurrency increases latency without improving throughput. Determined by iterating the scaling sweep and finding the inflection point. Saturation below your connection pool size means the database (not the client) is the bottleneck — check CPU%, DTU%, or IOPS limits on your cloud dashboard.',
+  'Peak IOPS': 'The highest I/O operations per second observed across all thread counts in the scaling sweep. This is the maximum throughput the database delivered during the test. Compare against your cloud tier\'s documented IOPS limits to gauge headroom.',
+  'Optimal': 'The thread count yielding the highest IOPS-per-thread ratio — the most cost-efficient concurrency level. Operating above optimal wastes connections and increases tail latency. Use this to size your application\'s connection pool: set pool_size ≈ optimal_threads per application instance, then scale horizontally if more throughput is needed.',
+  'Serial Fraction': 'Amdahl\'s Law serial fraction (f), derived from scaling sweep data: f = (1/speedup − 1/N) / (1 − 1/N), where N = thread count and speedup = IOPS_N / IOPS_1. A value of 0.0 means perfectly parallelizable; 0.5 means half the workload is serialized (e.g., lock contention, log writes). Cloud databases typically show f = 0.01–0.10 for reads, 0.05–0.30 for writes due to WAL serialization.',
+  'Integrity': 'SHA-256 data integrity verification. Each test cycle: generates a random binary page → computes its SHA-256 hash → INSERTs both into the database → later SELECTs the page back → recomputes SHA-256 → compares. PASS means zero bit-level corruptions detected across all sampled pages. A FAIL indicates corruption in the storage layer, network transport, or driver serialization — a critical finding that should be escalated to the cloud provider.',
+  'TPS': 'Committed transactions per second under concurrent load. Each transaction performs a balance transfer between two random accounts (read → compute → update → commit). Encompasses the full ACID cost: lock acquisition, WAL write, group commit flush, and lock release. Compare with your tier\'s documented transaction throughput. Note: TPS is typically 10–100× lower than IOPS because each transaction involves multiple round-trips and synchronous durability guarantees.',
+  'Conservation': 'Monetary conservation invariant: SUM(all_balances) before == SUM(all_balances) after all concurrent transfers. PASS (drift < $0.01) confirms correct isolation — no lost updates, phantom writes, or double-applies. FAIL indicates a serializability violation under your database\'s configured isolation level. Even small drift (e.g., $0.02) is a critical bug: it means concurrent transactions are corrupting each other\'s writes.',
+  'Committed': 'Ratio of successfully committed transactions to total attempted. The gap represents: deadlock victims (rolled back by the database), lock timeout aborts, serialization failures (in SERIALIZABLE mode), and connection errors. A committed rate below 90% under moderate concurrency suggests the workload exceeds the database\'s lock manager capacity or that isolation level should be relaxed.',
+  'Deadlocks': 'Count of transactions aborted by the database\'s deadlock detector (wait-for graph cycle detection). Some deadlocks are expected under high-contention workloads with random access patterns. Concern thresholds: < 1% of transactions is normal; 1–5% suggests hot-row contention that may benefit from row-level partitioning; > 5% likely requires schema redesign or reduced concurrency.',
+  'Commit p50': 'Median transaction commit latency including: lock acquisition time, WAL/redo log write (synchronous), group commit batching delay, and network round-trip for the COMMIT acknowledgement. On cloud databases, this is typically 2–10ms for synchronous commits. If p50 significantly exceeds your ping latency, the excess is server-side commit processing time (fsync, replication).',
+  'Commit p99': '99th percentile commit latency. Spikes above 10× the p50 typically indicate: log flush contention (many concurrent committers competing for WAL write), checkpoint I/O interference, synchronous replica acknowledgement delays (in HA configurations), or storage tier throttling. Correlate with your cloud provider\'s I/O latency metrics to distinguish storage vs. compute bottlenecks.',
+  'Analytical Geo Mean': 'Geometric mean of all successful query durations in seconds. Calculated as exp(Σ ln(duration_i) / N). The geometric mean is preferred over arithmetic mean because it fairly weights queries across different magnitude ranges — a 0.1s query and a 100s query contribute equally. This is the standard composite metric used in decision-support benchmarks. Lower is better.',
+  'Power Score': 'Analytical throughput metric: Power@SF = (3600 × Scale_Factor) / Geometric_Mean. Represents the theoretical number of query-streams per hour normalized by dataset size. Higher is better. Enables cross-comparison between runs at different scale factors. For context: a power score of 100 at SF=0.01 is equivalent to processing 100 complete query streams per hour on that dataset.',
+  'Fastest': 'The query with the shortest execution time. Typically a highly selective filter or simple aggregation that benefits from index seeks and small intermediate result sets. Useful as a lower-bound reference — if your fastest query exceeds your ping latency by a large margin, query compilation or plan caching may be an issue.',
+  'Slowest': 'The query with the longest execution time. Usually involves multi-way joins, correlated subqueries, large GROUP BY aggregations, or sort-merge operations that spill to tempdb. This query is your primary optimization target — check its execution plan for: table scans, hash spills, tempdb writes, and missing indexes.',
+  'Ping p50': 'Median round-trip time for SELECT 1 — the irreducible floor for any database operation. Includes: client-side socket write → network transit → TLS record processing → server SQL parse/execute → result serialization → network return → client read. On same-region cloud databases expect 1–5ms; cross-region 20–80ms. Every operation pays at least this cost.',
+  'Ping p99': '99th percentile SELECT 1 latency. Spikes beyond 3× the p50 indicate: TCP retransmissions, cloud provider network jitter, VM scheduling delays (CPU steal), or TLS renegotiation. Persistent high p99 on a small Azure/GCP instance often indicates noisy-neighbor interference — consider scaling up or using reserved/dedicated instances.',
+  'Ping Jitter': 'Mean absolute difference between consecutive ping measurements. Quantifies network path stability. Jitter < 0.5ms is excellent (dedicated/premium networking); 0.5–2ms is typical for shared cloud networking; > 5ms indicates routing instability or aggressive traffic shaping. High jitter degrades connection pool efficiency and makes timeout tuning difficult.',
+  'Conn Setup p50': 'Median time to establish a new database connection from scratch: TCP three-way handshake + TLS negotiation (2 RTTs for TLS 1.2, 1 RTT for TLS 1.3) + database authentication + session initialization. Typically 3–10× the ping latency. This is the cost your connection pool amortizes — if pool_size is too small and connections churn, this overhead hits every query.',
+  'DNS': 'Time to resolve the database FQDN to an IP address via the OS resolver. Includes local cache lookup or network DNS query. Cloud database hostnames often resolve through CNAME chains (e.g., Azure → Traffic Manager → regional endpoint). Values > 50ms suggest DNS cache misses or slow recursive resolvers — consider local DNS caching (e.g., dnsmasq, systemd-resolved).',
+  'First Byte p50': 'Median time from conn.execute() to first row received. Unlike ping (zero-data), this query returns 1000 rows with payload data, measuring: query plan compilation/cache lookup + index scan initiation + first page read from buffer pool + result set serialization + TCP segment transmission + client-side deserialization. The delta from ping latency reveals server-side query processing overhead.',
+  'Upload': 'Client-to-database bandwidth measured by timed bulk INSERT of 1KB rows. Reported in MB/s at the application layer. Factors in: parameterized query parsing, transaction log writes, index maintenance, and TCP upload throughput. Compare with your cloud tier\'s documented ingress bandwidth. Significantly lower than expected may indicate: WAL write bottleneck, insufficient DTUs/vCores, or client-side serialization overhead.',
+  'Download': 'Database-to-client bandwidth measured by timed SELECT of all rows from the bandwidth test table. Reported in MB/s at the application layer. Factors in: sequential scan speed, result serialization (row → wire protocol → TLS → TCP), and client-side deserialization. Compare with your cloud tier\'s documented egress bandwidth. Cloud providers typically offer higher download than upload throughput.',
+  'Bandwidth Down': 'Database-to-client bandwidth measured by timed SELECT of all rows from the bandwidth test table. Same as Download.',
+  'Analytical Queries': 'Count of analytical queries that completed without error out of total selected. Each query exercises different optimizer code paths: hash joins, merge joins, nested loops, aggregation strategies, subquery decorrelation, and sort operations. A failed query typically indicates: syntax incompatibility with the dialect, query timeout, or insufficient temp storage for intermediate results.',
+  'random_read IOPS': 'Random point-lookup throughput — each operation executes SELECT payload FROM table WHERE id = :random_pk. Exercises: B-tree index seek (O(log n)), single-page buffer pool fetch, network round-trip. This is the fundamental cloud database performance primitive. On Azure SQL Basic tier expect 5–50 IOPS; Premium/Business Critical: 1,000–10,000+. Directly comparable to block storage random read IOPS.',
+  'random_write IOPS': 'Random single-row UPDATE throughput — each operation executes UPDATE table SET payload = :data WHERE id = :random_pk. Exercises: index seek + row lock acquisition + in-place page modification + WAL write + lock release. Writes are typically 2–5× slower than reads due to: synchronous WAL flush, lock contention, and index maintenance. Write IOPS is often the binding constraint for OLTP workloads.',
+  'sequential_scan IOPS': 'Full table scan throughput — SELECT * over the entire test table. Measures: sequential I/O bandwidth, buffer pool read-ahead efficiency, result streaming performance, and network download speed for large result sets. Unlike random IOPS which is latency-bound, sequential scan is bandwidth-bound. Compare MB/s against your tier\'s documented sequential I/O throughput.',
+  'mixed_workload IOPS': 'Combined read/write throughput at a 70/30 read/write ratio, running concurrently across threads. This simulates a realistic OLTP workload where reads and writes compete for: buffer pool pages, row-level locks, WAL bandwidth, and CPU cycles. The read/write interference factor (mixed IOPS vs. pure read IOPS) reveals how well the database handles concurrent read-modify-write patterns.',
+  'bulk_write IOPS': 'Batch INSERT throughput — measures sustained write ingestion speed using multi-row INSERT statements. Relevant for ETL, data loading, and event ingestion pipelines. Performance is determined by: transaction log write speed, index maintenance overhead (more indexes = slower inserts), page split frequency, and auto-statistics update triggers.',
+};
+
+function renderResults(data) {
+  renderOverview(data);
+  renderSQLIO(data);
+  renderSQLIOSim(data);
+  renderDSB(data);
+  renderNetwork(data);
+  renderErrors(data);
+}
+
+function renderErrors(data) {
+  const errors = data.errors || [];
+  if (!errors.length) return;
+  const banner = document.createElement('div');
+  banner.className = 'card';
+  banner.style.borderLeft = '4px solid #f85149';
+  banner.innerHTML = '<h3 style="color:#f85149">Tests with errors</h3>' +
+    errors.map(e => `<p style="margin:0.3rem 0"><b>${e.test}</b>: ${e.error}</p>`).join('');
+  document.getElementById('tab-overview').prepend(banner);
+}
+
+function renderOverview(data) {
+  const el = document.getElementById('tab-overview');
+  let html = '<div class="result-grid">';
+
+  const sqlio = data.sqlio || [];
+  const sim = data.sqliosim || [];
+  const dsb = data.dsb;
+  const net = data.network;
+
+  sqlio.forEach(s => {
+    const t = s.throughput;
+    const l = s.latency;
+    html += metricCard(s.test_name + ' IOPS', fmtNum(t.avg_ops_per_sec), rateIOPS(t.avg_ops_per_sec, s.test_name), `p99: ${l.p99_ms.toFixed(1)} ms`, s.test_name+' IOPS');
+  });
+
+  sim.forEach(s => {
+    if (s.integrity?.pages_written > 0)
+      html += metricCard('Integrity', s.integrity.integrity_pass?'PASS':'FAIL',
+        s.integrity.integrity_pass?'PASS':'FAIL', `${s.integrity.pages_verified} pages verified`, 'Integrity');
+    if (s.concurrency?.tps > 0)
+      html += metricCard('TPS', fmtNum(s.concurrency.tps), s.concurrency.tps>1000?'GOOD':'FAIR',
+        `${s.concurrency.deadlocks} deadlocks`, 'TPS');
+  });
+
+  if (dsb) {
+    html += metricCard('Analytical Geo Mean', dsb.geometric_mean_sec.toFixed(3)+'s', '', `Power: ${fmtNum(dsb.power_score)}`, 'Analytical Geo Mean');
+    html += metricCard('Analytical Queries', `${dsb.queries.filter(q=>q.status==='ok').length}/${dsb.queries.length}`, 'GOOD', `Total: ${dsb.total_runtime_sec.toFixed(1)}s`, 'Analytical Queries');
+  }
+
+  if (net) {
+    html += metricCard('Ping p50', net.ping_latency.p50_ms.toFixed(1)+' ms', rateLatency(net.ping_latency.p50_ms), `p99: ${net.ping_latency.p99_ms.toFixed(1)} ms`, 'Ping p50');
+    html += metricCard('Bandwidth Down', net.bandwidth_download_mbps.toFixed(1)+' MB/s', '', `Up: ${net.bandwidth_upload_mbps.toFixed(1)} MB/s`, 'Bandwidth Down');
+  }
+
+  html += '</div>';
+  el.innerHTML = html;
+}
+
+function metricCard(label, value, rating, sub, tipKey) {
+  const badge = rating ? `<span class="badge badge-${badgeColor(rating)}">${rating}</span>` : '';
+  const tip = TIPS[tipKey||label] || TIPS[label] || '';
+  const labelHtml = tip
+    ? `<span class="has-tooltip">${label}<span class="tooltip">${tip}</span></span> ${badge}`
+    : `${label} ${badge}`;
+  return `<div class="metric-card"><div class="label">${labelHtml}</div><div class="value">${value}</div><div class="sub">${sub||''}</div></div>`;
+}
+
+function renderSQLIO(data) {
+  const el = document.getElementById('tab-sqlio');
+  const sqlio = data.sqlio || [];
+  if (!sqlio.length) { el.innerHTML = '<div class="card"><p style="color:var(--text-dim)">No I/O tests were run.</p></div>'; return; }
+
+  let html = '';
+  sqlio.forEach((s,i) => {
+    const t = s.throughput;
+    const l = s.latency;
+    html += `<div class="card">
+      <h2>${s.test_name}</h2>
+      ${configSummary(s.config)}
+      <div class="result-grid">
+        ${metricCard('IOPS', fmtNum(t.avg_ops_per_sec), rateIOPS(t.avg_ops_per_sec, s.test_name), '', 'IOPS')}
+        ${metricCard('Throughput', t.avg_mbps.toFixed(1)+' MB/s', '', '', 'Throughput')}
+        ${metricCard('p50 Latency', l.p50_ms.toFixed(2)+' ms', rateLatency(l.p50_ms), '', 'p50 Latency')}
+        ${metricCard('p99 Latency', l.p99_ms.toFixed(2)+' ms', rateLatency(l.p99_ms), '', 'p99 Latency')}
+        ${metricCard('Jitter', l.jitter_ms.toFixed(2)+' ms', '', '', 'Jitter')}
+        ${metricCard('Error Rate', t.error_rate_pct.toFixed(2)+'%', t.error_rate_pct<0.1?'GOOD':'HIGH', '', 'Error Rate')}
+      </div>
+      <table class="results-table"><thead><tr>
+        <th>Percentile</th><th>Latency (ms)</th>
+      </tr></thead><tbody>
+        <tr><td>p50</td><td>${l.p50_ms.toFixed(3)}</td></tr>
+        <tr><td>p75</td><td>${l.p75_ms.toFixed(3)}</td></tr>
+        <tr><td>p90</td><td>${l.p90_ms.toFixed(3)}</td></tr>
+        <tr><td>p95</td><td>${l.p95_ms.toFixed(3)}</td></tr>
+        <tr><td>p99</td><td>${l.p99_ms.toFixed(3)}</td></tr>
+        <tr><td>p99.9</td><td>${l.p999_ms.toFixed(3)}</td></tr>
+      </tbody></table>
+      <div class="chart-container"><canvas id="sqlio-lat-${i}"></canvas></div>
+    </div>`;
+
+    const ts = s.throughput.time_series || [];
+    if (ts.length > 0) {
+      html += `<div class="card">
+        <h2>Performance Over Time: ${s.test_name}</h2>
+        <div class="chart-container"><canvas id="sqlio-iops-${i}"></canvas></div>
+      </div>`;
+    }
+
+    if (s.scalability) {
+      const sc = s.scalability;
+      html += `<div class="card">
+        <h2>Thread Scaling: ${sc.metric_name}</h2>
+        <div class="result-grid">
+          ${metricCard('Peak IOPS', sc.peak_iops.toLocaleString(undefined,{maximumFractionDigits:0}), 'at '+sc.peak_iops_threads+' threads', '', 'Peak IOPS')}
+          ${metricCard('Saturation', sc.saturation_point_threads+' threads', '', '', 'Saturation')}
+          ${metricCard('Optimal', sc.optimal_threads+' threads', '', '', 'Optimal')}
+          ${metricCard('Serial Fraction', sc.amdahl_serial_fraction.toFixed(4), '', '', 'Serial Fraction')}
+        </div>
+        <div class="chart-container"><canvas id="sqlio-sc-${i}"></canvas></div>
+      </div>`;
+    }
+  });
+  el.innerHTML = html;
+
+  sqlio.forEach((s,i) => {
+    const l = s.latency;
+    new Chart(document.getElementById('sqlio-lat-'+i), {
+      type:'bar',
+      data:{
+        labels:['p50','p75','p90','p95','p99','p99.9'],
+        datasets:[{label:'Latency (ms)',data:[l.p50_ms,l.p75_ms,l.p90_ms,l.p95_ms,l.p99_ms,l.p999_ms],
+          backgroundColor:['#3fb950','#56d364','#e3b341','#d29922','#f0883e','#f85149']}]
+      },
+      options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},
+        scales:{y:{grid:{color:'#21262d'},ticks:{color:'#8b949e'}},x:{grid:{display:false},ticks:{color:'#8b949e'}}}}
+    });
+    const ts = s.throughput.time_series || [];
+    if (ts.length > 0) {
+      const hasMbps = ts.some(p => p.mbps > 0);
+      const chartType = ts.length <= 3 ? 'bar' : 'line';
+      const datasets = [
+        {label:'IOPS (per interval)',data:ts.map(p=>p.ops_per_sec),borderColor:'#58a6ff',backgroundColor:'rgba(88,166,255,0.15)',fill:chartType==='line',tension:0.3,pointRadius:ts.length<=5?4:2,yAxisID:'y'}
+      ];
+      if (chartType === 'line') {
+        datasets.push({label:'Avg IOPS (cumulative)',data:ts.map(p=>p.avg_ops_per_sec),borderColor:'#3fb950',borderDash:[5,3],tension:0.3,pointRadius:0,yAxisID:'y'});
+      }
+      const scales = {
+        y:{position:'left',title:{display:true,text:'IOPS',color:'#8b949e'},grid:{color:'#21262d'},ticks:{color:'#8b949e'}},
+        x:{title:{display:true,text:'Elapsed Time',color:'#8b949e'},grid:{display:false},ticks:{color:'#8b949e',maxTicksLimit:20}}
+      };
+      if (hasMbps) {
+        datasets.push({label:'MB/s',data:ts.map(p=>p.mbps),borderColor:'#d2a8ff',backgroundColor:'rgba(210,168,255,0.15)',type:'line',tension:0.3,pointRadius:ts.length<=5?4:2,yAxisID:'y1'});
+        scales.y1 = {position:'right',title:{display:true,text:'MB/s',color:'#8b949e'},grid:{drawOnChartArea:false},ticks:{color:'#8b949e'}};
+      }
+      new Chart(document.getElementById('sqlio-iops-'+i), {
+        type:chartType,
+        data:{ labels: ts.map(p=>p.elapsed_sec+'s'), datasets },
+        options:{responsive:true,maintainAspectRatio:false,
+          plugins:{legend:{labels:{color:'#c9d1d9'}}},
+          scales
+        }
+      });
+    }
+    if (s.scalability) {
+      const pts = s.scalability.points;
+      new Chart(document.getElementById('sqlio-sc-'+i), {
+        type:'line',
+        data:{
+          labels: pts.map(p=>p.threads),
+          datasets:[
+            {label:'IOPS',data:pts.map(p=>p.iops),borderColor:'#58a6ff',yAxisID:'y',tension:0.2},
+            {label:'Efficiency %',data:pts.map(p=>p.efficiency_pct),borderColor:'#d2a8ff',yAxisID:'y1',tension:0.2}
+          ]
+        },
+        options:{responsive:true,maintainAspectRatio:false,
+          scales:{
+            y:{position:'left',title:{display:true,text:'IOPS',color:'#8b949e'},grid:{color:'#21262d'},ticks:{color:'#8b949e'}},
+            y1:{position:'right',title:{display:true,text:'Efficiency %',color:'#8b949e'},min:0,max:120,grid:{drawOnChartArea:false},ticks:{color:'#8b949e'}},
+            x:{title:{display:true,text:'Threads',color:'#8b949e'},grid:{display:false},ticks:{color:'#8b949e'}}
+          }
+        }
+      });
+    }
+  });
+}
+
+function renderSQLIOSim(data) {
+  const el = document.getElementById('tab-sqliosim');
+  const sim = data.sqliosim || [];
+  if (!sim.length) { el.innerHTML = '<div class="card"><p style="color:var(--text-dim)">No stress tests were run.</p></div>'; return; }
+
+  let html = '';
+  sim.forEach(s => {
+    const ig = s.integrity||{};
+    const cn = s.concurrency||{};
+    const au = s.data_integrity_audit||{};
+    const cl = s.commit_latency||{};
+
+    html += `<div class="card"><h2>${s.test_name}</h2>${configSummary(s.config)}<div class="result-grid">`;
+    if (ig.pages_written > 0) {
+      html += metricCard('Integrity', ig.integrity_pass?'PASS':'FAIL', ig.integrity_pass?'PASS':'FAIL',
+        `${ig.pages_verified} verified, ${ig.corruptions_detected} corruptions`, 'Integrity');
+    }
+    if (cn.total_transactions > 0) {
+      html += metricCard('TPS', fmtNum(cn.tps), cn.tps>1000?'GOOD':'FAIR', '', 'TPS');
+      html += metricCard('Committed', fmtNum(cn.committed)+' / '+fmtNum(cn.total_transactions), '', '', 'Committed');
+      html += metricCard('Deadlocks', cn.deadlocks.toString(), cn.deadlocks===0?'GOOD':'FAIR', '', 'Deadlocks');
+    }
+    if (au.balance_before > 0) {
+      html += metricCard('Conservation', au.conservation_pass?'PASS':'FAIL', au.conservation_pass?'PASS':'FAIL',
+        `Drift: $${au.balance_drift.toFixed(2)}`, 'Conservation');
+    }
+    if (cl.count > 0) {
+      html += metricCard('Commit p50', cl.p50_ms.toFixed(2)+' ms', rateLatency(cl.p50_ms), '', 'Commit p50');
+      html += metricCard('Commit p99', cl.p99_ms.toFixed(2)+' ms', rateLatency(cl.p99_ms), '', 'Commit p99');
+    }
+    html += '</div></div>';
+  });
+  el.innerHTML = html;
+}
+
+function renderDSB(data) {
+  const el = document.getElementById('tab-dsb');
+  const dsb = data.dsb;
+  if (!dsb) { el.innerHTML = '<div class="card"><p style="color:var(--text-dim)">Analytical queries were not run.</p></div>'; return; }
+
+  let html = `<div class="card">
+    <h2>Analytical Results (SF ${dsb.scale_factor})</h2>
+    <div class="result-grid">
+      ${metricCard('Geometric Mean', dsb.geometric_mean_sec.toFixed(3)+' s', '', '', 'Analytical Geo Mean')}
+      ${metricCard('Power Score', fmtNum(dsb.power_score), '', '', 'Power Score')}
+      ${metricCard('Fastest', dsb.fastest_query, 'GOOD', '', 'Fastest')}
+      ${metricCard('Slowest', dsb.slowest_query, 'FAIR', '', 'Slowest')}
+    </div>
+    <div class="chart-container"><canvas id="dsb-chart"></canvas></div>
+    <table class="results-table"><thead><tr>
+      <th>Query</th><th>Duration</th><th>Rows</th><th>Cold</th><th>Warm</th><th>Speedup</th><th>Status</th>
+    </tr></thead><tbody>`;
+  dsb.queries.forEach(q => {
+    const badge = q.status==='ok' ? '<span class="badge badge-green">OK</span>' : '<span class="badge badge-red">'+q.status.toUpperCase()+'</span>';
+    const cols = q.result_columns || [];
+    const rows = q.result_rows_preview || [];
+    const head = cols.length ? `<div style="color:var(--text-dim);font-size:0.75rem;margin-bottom:0.25rem">${cols.join(' | ')}</div>` : '';
+    const body = rows.length ? rows.map(r => `<div>${r.map(v => v===null?'NULL':String(v)).join(' | ')}</div>`).join('') : '<div style="color:var(--text-dim)">No rows</div>';
+    const trunc = q.results_truncated ? '<div style="color:var(--text-dim);font-size:0.75rem;margin-top:0.2rem">Showing first 10 rows</div>' : '';
+    const preview = `<details><summary>View rows</summary><div style="margin-top:0.4rem;font-family:ui-monospace, SFMono-Regular, Menlo, monospace;font-size:0.76rem;white-space:pre-wrap;line-height:1.4">${head}${body}${trunc}</div></details>`;
+    html += `<tr><td>${q.query_id}</td><td>${q.duration_sec.toFixed(3)}s</td><td>${fmtNum(q.rows_returned)}</td>
+      <td>${q.cold_run_sec.toFixed(3)}s</td><td>${q.warm_run_sec.toFixed(3)}s</td>
+      <td>${q.cache_speedup_ratio.toFixed(1)}x</td><td>${badge}<div style="margin-top:0.4rem">${preview}</div></td></tr>`;
+  });
+  html += '</tbody></table></div>';
+  el.innerHTML = html;
+
+  new Chart(document.getElementById('dsb-chart'), {
+    type:'bar',
+    data:{
+      labels: dsb.queries.map(q=>q.query_id),
+      datasets:[{label:'Duration (s)', data: dsb.queries.map(q=>q.duration_sec),
+        backgroundColor: dsb.queries.map(q=>q.status==='ok'?'#3fb950':'#f85149')}]
+    },
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},
+      scales:{y:{grid:{color:'#21262d'},ticks:{color:'#8b949e'}},x:{grid:{display:false},ticks:{color:'#8b949e'}}}}
+  });
+}
+
+function renderNetwork(data) {
+  const el = document.getElementById('tab-network');
+  const net = data.network;
+  if (!net) { el.innerHTML = '<div class="card"><p style="color:var(--text-dim)">Network profiling was not run.</p></div>'; return; }
+
+  const p = net.ping_latency;
+  const cs = net.connection_setup;
+  const fb = net.first_byte_latency;
+  let html = `<div class="card"><h2>Network Profile</h2><div class="result-grid">
+    ${metricCard('Ping p50', p.p50_ms.toFixed(2)+' ms', rateLatency(p.p50_ms), '', 'Ping p50')}
+    ${metricCard('Ping p99', p.p99_ms.toFixed(2)+' ms', rateLatency(p.p99_ms), '', 'Ping p99')}
+    ${metricCard('Ping Jitter', p.jitter_ms.toFixed(2)+' ms', '', '', 'Ping Jitter')}
+    ${metricCard('Conn Setup p50', cs.p50_ms.toFixed(1)+' ms', '', '', 'Conn Setup p50')}
+    ${metricCard('DNS', net.dns_resolution_ms.toFixed(1)+' ms', '', '', 'DNS')}
+    ${metricCard('First Byte p50', fb.p50_ms.toFixed(2)+' ms', '', '', 'First Byte p50')}
+    ${metricCard('Upload', net.bandwidth_upload_mbps.toFixed(1)+' MB/s', '', '', 'Upload')}
+    ${metricCard('Download', net.bandwidth_download_mbps.toFixed(1)+' MB/s', '', '', 'Download')}
+  </div>
+  <div class="chart-container"><canvas id="net-chart"></canvas></div>
+  </div>`;
+  el.innerHTML = html;
+
+  new Chart(document.getElementById('net-chart'), {
+    type:'bar',
+    data:{
+      labels:['p50','p75','p90','p95','p99','p99.9'],
+      datasets:[{label:'Ping Latency (ms)',data:[p.p50_ms,p.p75_ms,p.p90_ms,p.p95_ms,p.p99_ms,p.p999_ms],
+        backgroundColor:['#3fb950','#56d364','#e3b341','#d29922','#f0883e','#f85149']}]
+    },
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},
+      scales:{y:{grid:{color:'#21262d'},ticks:{color:'#8b949e'}},x:{grid:{display:false},ticks:{color:'#8b949e'}}}}
+  });
+}
+
+function fmtNum(n) { return n>=1000?n.toLocaleString(undefined,{maximumFractionDigits:0}):n?.toFixed?.(1)||String(n); }
+
+/* ─── Export helpers ─── */
+
+function exportJSON() {
+  if (!benchmarkResults) return;
+  const blob = new Blob([JSON.stringify(benchmarkResults, null, 2)], {type: 'application/json'});
+  _download(blob, _exportFilename('json'));
+}
+
+function exportCSV() {
+  if (!benchmarkResults) return;
+  const d = benchmarkResults;
+  const rows = [];
+
+  const ts = new Date(d.timestamp * 1000).toISOString();
+  const dbInfo = d.database_info || {};
+  const header = ['section','metric','value','unit'];
+
+  rows.push(['meta','timestamp', ts, '']);
+  rows.push(['meta','preset', d.preset, '']);
+  rows.push(['meta','dialect', dbInfo.dialect_family||'', '']);
+  rows.push(['meta','host', dbInfo.host||'', '']);
+  rows.push(['meta','server_version', dbInfo.server_version||'', '']);
+  rows.push(['meta','baseline_ping', dbInfo.ping_ms||'', 'ms']);
+
+  (d.sqlio || []).forEach(s => {
+    const t = s.throughput, l = s.latency, sec = 'io:'+s.test_name;
+    rows.push([sec, 'iops', t.avg_ops_per_sec, 'ops/s']);
+    rows.push([sec, 'throughput', t.avg_mbps, 'MB/s']);
+    rows.push([sec, 'total_ops', t.total_ops, '']);
+    rows.push([sec, 'total_errors', t.total_errors, '']);
+    rows.push([sec, 'error_rate', t.error_rate_pct, '%']);
+    rows.push([sec, 'duration', t.duration_sec, 's']);
+    rows.push([sec, 'latency_min', l.min_ms, 'ms']);
+    rows.push([sec, 'latency_p50', l.p50_ms, 'ms']);
+    rows.push([sec, 'latency_p75', l.p75_ms, 'ms']);
+    rows.push([sec, 'latency_p90', l.p90_ms, 'ms']);
+    rows.push([sec, 'latency_p95', l.p95_ms, 'ms']);
+    rows.push([sec, 'latency_p99', l.p99_ms, 'ms']);
+    rows.push([sec, 'latency_p999', l.p999_ms, 'ms']);
+    rows.push([sec, 'latency_max', l.max_ms, 'ms']);
+    rows.push([sec, 'latency_mean', l.mean_ms, 'ms']);
+    rows.push([sec, 'latency_stddev', l.stddev_ms, 'ms']);
+    rows.push([sec, 'jitter', l.jitter_ms, 'ms']);
+    rows.push([sec, 'pool_high_water', s.pool_high_water||'', 'conns']);
+    if (s.scalability) {
+      const sc = s.scalability;
+      rows.push([sec, 'peak_iops', sc.peak_iops, 'ops/s']);
+      rows.push([sec, 'peak_iops_threads', sc.peak_iops_threads, 'threads']);
+      rows.push([sec, 'saturation_threads', sc.saturation_point_threads, 'threads']);
+      rows.push([sec, 'optimal_threads', sc.optimal_threads, 'threads']);
+      rows.push([sec, 'amdahl_serial_fraction', sc.amdahl_serial_fraction, '']);
+      (sc.points||[]).forEach(p => {
+        rows.push([sec+':scaling', 'threads='+p.threads+'_iops', p.iops, 'ops/s']);
+        rows.push([sec+':scaling', 'threads='+p.threads+'_p50', p.p50_ms, 'ms']);
+        rows.push([sec+':scaling', 'threads='+p.threads+'_p99', p.p99_ms, 'ms']);
+        rows.push([sec+':scaling', 'threads='+p.threads+'_efficiency', p.efficiency_pct, '%']);
+      });
+    }
+  });
+
+  (d.sqliosim || []).forEach(s => {
+    const sec = 'stress:'+s.test_name;
+    const ig = s.integrity||{}, cn = s.concurrency||{}, au = s.data_integrity_audit||{}, cl = s.commit_latency||{};
+    if (ig.pages_written > 0) {
+      rows.push([sec, 'integrity_pass', ig.integrity_pass?1:0, 'bool']);
+      rows.push([sec, 'pages_written', ig.pages_written, '']);
+      rows.push([sec, 'pages_verified', ig.pages_verified, '']);
+      rows.push([sec, 'corruptions', ig.corruptions_detected, '']);
+    }
+    if (cn.total_transactions > 0) {
+      rows.push([sec, 'tps', cn.tps, 'txn/s']);
+      rows.push([sec, 'committed', cn.committed, '']);
+      rows.push([sec, 'total_transactions', cn.total_transactions, '']);
+      rows.push([sec, 'deadlocks', cn.deadlocks, '']);
+    }
+    if (au.balance_before > 0) {
+      rows.push([sec, 'conservation_pass', au.conservation_pass?1:0, 'bool']);
+      rows.push([sec, 'balance_before', au.balance_before, '$']);
+      rows.push([sec, 'balance_after', au.balance_after, '$']);
+      rows.push([sec, 'balance_drift', au.balance_drift, '$']);
+    }
+    if (cl.count > 0) {
+      rows.push([sec, 'commit_p50', cl.p50_ms, 'ms']);
+      rows.push([sec, 'commit_p99', cl.p99_ms, 'ms']);
+      rows.push([sec, 'commit_mean', cl.mean_ms, 'ms']);
+    }
+  });
+
+  if (d.dsb) {
+    const t = d.dsb;
+    rows.push(['analytical', 'scale_factor', t.scale_factor, '']);
+    rows.push(['analytical', 'geometric_mean', t.geometric_mean_sec, 's']);
+    rows.push(['analytical', 'power_score', t.power_score, '']);
+    rows.push(['analytical', 'total_runtime', t.total_runtime_sec, 's']);
+    rows.push(['analytical', 'fastest_query', t.fastest_query, '']);
+    rows.push(['analytical', 'slowest_query', t.slowest_query, '']);
+    (t.queries||[]).forEach(q => {
+      const sec = 'analytical:'+q.query_id;
+      rows.push([sec, 'duration', q.duration_sec, 's']);
+      rows.push([sec, 'status', q.status, '']);
+      rows.push([sec, 'rows_returned', q.rows_returned, '']);
+      rows.push([sec, 'cold_run', q.cold_run_sec, 's']);
+      rows.push([sec, 'warm_run', q.warm_run_sec, 's']);
+      rows.push([sec, 'cache_speedup', q.cache_speedup_ratio, 'x']);
+    });
+  }
+
+  if (d.network) {
+    const n = d.network, p = n.ping_latency, cs = n.connection_setup, fb = n.first_byte_latency;
+    rows.push(['network', 'dns_resolution', n.dns_resolution_ms, 'ms']);
+    rows.push(['network', 'ping_p50', p.p50_ms, 'ms']);
+    rows.push(['network', 'ping_p75', p.p75_ms, 'ms']);
+    rows.push(['network', 'ping_p90', p.p90_ms, 'ms']);
+    rows.push(['network', 'ping_p95', p.p95_ms, 'ms']);
+    rows.push(['network', 'ping_p99', p.p99_ms, 'ms']);
+    rows.push(['network', 'ping_p999', p.p999_ms, 'ms']);
+    rows.push(['network', 'ping_mean', p.mean_ms, 'ms']);
+    rows.push(['network', 'ping_jitter', p.jitter_ms, 'ms']);
+    rows.push(['network', 'conn_setup_p50', cs.p50_ms, 'ms']);
+    rows.push(['network', 'conn_setup_p99', cs.p99_ms, 'ms']);
+    rows.push(['network', 'first_byte_p50', fb.p50_ms, 'ms']);
+    rows.push(['network', 'first_byte_p99', fb.p99_ms, 'ms']);
+    rows.push(['network', 'bandwidth_upload', n.bandwidth_upload_mbps, 'MB/s']);
+    rows.push(['network', 'bandwidth_download', n.bandwidth_download_mbps, 'MB/s']);
+  }
+
+  if (d.isolation) {
+    (d.isolation||[]).forEach(iso => {
+      const sec = 'isolation:'+iso.level;
+      Object.entries(iso.results||{}).forEach(([test, result]) => {
+        rows.push([sec, test, result, '']);
+      });
+    });
+  }
+
+  const csvContent = [header, ...rows].map(r => r.map(_csvCell).join(',')).join('\n');
+  const blob = new Blob([csvContent], {type: 'text/csv;charset=utf-8;'});
+  _download(blob, _exportFilename('csv'));
+}
+
+/* ─── PDF Report ─── */
+
+function exportPDF() {
+  if (!benchmarkResults) return;
+  const d = benchmarkResults;
+  const db = d.database_info || {};
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+  const W = doc.internal.pageSize.getWidth();
+  const H = doc.internal.pageSize.getHeight();
+  const margin = 18;
+  const contentW = W - margin * 2;
+
+  const BRAND = [34, 89, 220];
+  const DARK  = [13, 17, 23];
+  const LIGHT = [201, 209, 217];
+  const DIM   = [139, 148, 158];
+  const WHITE = [255, 255, 255];
+  const GREEN = [63, 185, 80];
+  const RED   = [248, 81, 73];
+
+  const ts = new Date(d.timestamp * 1000);
+  const dateStr = ts.toLocaleDateString('en-US', { year:'numeric', month:'long', day:'numeric' });
+  const timeStr = ts.toLocaleTimeString('en-US', { hour:'2-digit', minute:'2-digit' });
+  const hostName = db.host || 'Unknown Host';
+
+  function addFooter() {
+    doc.setDrawColor(200, 205, 215);
+    doc.setLineWidth(0.3);
+    doc.line(margin, H - 14, W - margin, H - 14);
+    doc.setFontSize(7.5);
+    doc.setFont(undefined, 'normal');
+    doc.setTextColor(...DIM);
+    doc.text('CloudBench  ·  Database Performance Report', margin, H - 9);
+    doc.text(`${doc.internal.getCurrentPageInfo().pageNumber}`, W - margin, H - 9, { align: 'right' });
+  }
+
+  function newPage() {
+    doc.addPage();
+    addFooter();
+    return 22;
+  }
+
+  function sectionTitle(title, y) {
+    if (y > H - 50) y = newPage();
+    doc.setFontSize(18);
+    doc.setFont(undefined, 'bold');
+    doc.setTextColor(...BRAND);
+    doc.text(title, margin, y);
+    doc.setDrawColor(...BRAND);
+    doc.setLineWidth(0.6);
+    doc.line(margin, y + 3, margin + contentW, y + 3);
+    doc.setFont(undefined, 'normal');
+    return y + 12;
+  }
+
+  function subTitle(title, y) {
+    if (y > H - 40) y = newPage();
+    doc.setFontSize(12);
+    doc.setFont(undefined, 'bold');
+    doc.setTextColor(50, 55, 65);
+    doc.text(title, margin, y);
+    doc.setDrawColor(220, 225, 235);
+    doc.setLineWidth(0.2);
+    doc.line(margin, y + 2.5, margin + contentW, y + 2.5);
+    doc.setFont(undefined, 'normal');
+    return y + 9;
+  }
+
+  function descBlock(text, y) {
+    if (y > H - 30) y = newPage();
+    doc.setFontSize(8.5);
+    doc.setFont(undefined, 'normal');
+    doc.setTextColor(80, 85, 95);
+    const lines = doc.splitTextToSize(text, contentW - 4);
+    doc.text(lines, margin + 2, y);
+    return y + lines.length * 3.6 + 4;
+  }
+
+  const TEST_DESC = {
+    'random_read': 'Executes SELECT payload FROM test_table WHERE id = :random_pk using randomly chosen primary keys across a scaling thread sweep. Each operation exercises the full cloud database I/O path: B-tree index seek, single-page buffer pool fetch (or storage read on cache miss), result serialization, TLS framing, and network round-trip. This is the fundamental performance primitive for cloud databases — directly analogous to 4KB random read IOPS on block storage. The thread sweep reveals how throughput scales with concurrency and identifies the saturation point where adding connections no longer improves performance.',
+
+    'random_write': 'Executes UPDATE test_table SET payload = :random_data WHERE id = :random_pk under increasing thread concurrency. Each write operation involves: index seek to locate the target row, row-level lock acquisition, in-place page modification in the buffer pool, synchronous write-ahead log (WAL/redo log) flush to durable storage, and lock release. Writes are typically 2–5x slower than reads because every write must survive a crash — the WAL flush is the serialization bottleneck all concurrent writers share. The scaling curve for writes directly reveals WAL throughput limits and lock contention behavior.',
+
+    'sequential_scan': 'Executes SELECT * FROM test_table to perform a full table scan, reading every row in physical storage order. Unlike random I/O tests (which are latency-bound by network RTT and index seeks), sequential scan is bandwidth-bound — it measures how fast the database can stream large result sets from storage through the buffer pool, across the network, and into the client. Performance is determined by: storage sequential read throughput, buffer pool read-ahead efficiency, result set serialization speed, TCP window scaling, and TLS encryption overhead.',
+
+    'mixed_workload': 'Runs a concurrent mix of 70% point reads (SELECT by PK) and 30% single-row UPDATEs across multiple threads, simulating a realistic OLTP workload. This test reveals the read/write interference factor — how much concurrent writes degrade read performance through buffer pool page invalidation, row-level lock contention, and WAL flush serialization. The ratio of mixed IOPS to pure read IOPS quantifies this interference: a ratio below 0.6 indicates significant write-path contention that may require schema optimization or tier upgrade.',
+
+    'bulk_write': 'Inserts rows in multi-row INSERT batches to measure sustained write ingestion throughput. Performance is governed by: transaction log write bandwidth (the primary bottleneck), B-tree page splits (when new keys fall between existing index entries), index maintenance overhead (each additional index multiplies insert cost), auto-statistics update triggers, and checkpoint interference. This test is directly relevant to ETL pipelines, Change Data Capture (CDC) replication, event streaming ingestion, and any workload that bulk-loads data into the database.',
+
+    'pool_stress': 'Fires bursts of SELECT 1 queries at escalating concurrency levels (1, 5, 10, 20, 40, 60, 80, 100, 150, 200 simultaneous connections) to map the connection pool\'s behavior under stress. At low concurrency, checkout latency should match the baseline ping. As concurrency increases, the test identifies: the saturation point (where latency begins to spike due to connection pool exhaustion or database-side thread scheduling), the failure threshold (where connections are refused), and per-burst p50/p99 latency. Use these results to size your application\'s max_pool_size and detect cloud-imposed connection limits.',
+
+    'integrity_stress': 'Writes random binary pages of configurable size (matching the I/O block size) along with their SHA-256 cryptographic hashes into the database under concurrent thread load. After all writes complete, a statistical sample of pages is read back, and the SHA-256 hash is recomputed and compared against the stored hash. This detects: silent storage-layer corruption (bit rot), network transport errors beyond what TCP/TLS checksums catch, database engine bugs in page management, and driver-level serialization issues. Any hash mismatch is a FAIL — a critical finding indicating data corruption that should be investigated immediately.',
+
+    'concurrent_stress': 'Creates a set of bank accounts with known initial balances, then executes thousands of concurrent balance-transfer transactions (debit account A, credit account B within a single BEGIN/COMMIT block). After all transactions complete, the test verifies that SUM(all_balances) equals the original total — the monetary conservation invariant. This tests the database\'s core ACID guarantees under realistic contention: atomicity (partial transfers must not persist), consistency (balances must remain valid), isolation (concurrent transfers must not corrupt each other), and durability (committed transfers must survive). The test also measures: transactions per second (TPS), deadlock frequency, commit latency distribution, and the ratio of successfully committed to total attempted transactions.',
+
+    'isolation': 'Systematically tests each transaction isolation level supported by the database engine (READ UNCOMMITTED, READ COMMITTED, REPEATABLE READ, SERIALIZABLE, and SNAPSHOT where available) by executing known anomaly-producing patterns and checking whether the database correctly prevents them. Tests for: dirty reads (reading uncommitted data from another transaction), non-repeatable reads (a row changing between two reads within the same transaction), phantom reads (new rows appearing in a repeated range query), and write skew (two transactions reading overlapping data and making disjoint updates that violate a constraint). This validates that the database\'s actual isolation behavior matches its documented guarantees.',
+  };
+
+  const SECTION_DESC = {
+    'io': 'These tests measure the database\'s storage-layer throughput and latency through SQL-level operations. Each test uses a dedicated table populated with rows containing a random binary payload of the configured block size. The thread scaling sweep runs each workload at multiple concurrency levels to build a throughput-vs-concurrency curve, identifying the optimal thread count, saturation point, and Amdahl\'s serial fraction. All latency measurements are captured at the application layer (including network round-trip time) and reported as a full percentile distribution.',
+
+    'stress': 'These tests validate data correctness and ACID guarantees under concurrent load. Unlike the I/O tests (which measure performance), stress tests verify that the database produces correct results under contention — that data is not silently corrupted, that transactions are properly isolated, and that concurrent modifications do not violate application invariants. Any failure in these tests is a significant finding.',
+
+    'analytical': 'The analytical benchmark generates a normalized star-schema dataset (zones, countries, vendors, buyers, products, inventory, sale orders, order details) and executes 16 original decision-support queries covering a range of SQL patterns: multi-way joins, correlated subqueries, EXISTS/NOT EXISTS, GROUP BY with HAVING, CASE expressions, CTEs, derived tables, and ranking queries. Each query runs cold (first execution — no plan cache, cold buffer pool) and warm (immediate re-execution — cached plan, warm buffer pool) to measure query compilation overhead and cache effectiveness. The geometric mean fairly weights all query durations regardless of magnitude, and the power score normalizes throughput across different scale factors for cross-comparison.',
+
+    'network': 'Network profiling isolates the transport layer from the database compute layer, allowing you to distinguish whether performance is network-bound or compute-bound. Each measurement targets a specific segment of the connection lifecycle: DNS resolution (hostname-to-IP lookup), TCP+TLS connection establishment (handshake overhead your connection pool amortizes), bare ping latency (the irreducible floor for any operation — SELECT 1 with zero payload), first-byte latency (query compilation + initial I/O + first result row), and bidirectional bandwidth (bulk INSERT upload and bulk SELECT download throughput). These measurements provide the baseline context for interpreting all other test results.',
+  };
+
+  function labelTag(text, y) {
+    if (y > H - 30) y = newPage();
+    doc.setFontSize(9.5);
+    doc.setFont(undefined, 'bold');
+    doc.setTextColor(100, 105, 120);
+    doc.text(text.toUpperCase(), margin, y);
+    doc.setFont(undefined, 'normal');
+    return y + 5;
+  }
+
+  function addChart(canvasId, y, height) {
+    const canvas = document.getElementById(canvasId);
+    if (!canvas) return y;
+    if (y + height + 10 > H - 20) y = newPage();
+    try {
+      const imgData = canvas.toDataURL('image/png', 1.0);
+      const ratio = canvas.width / canvas.height;
+      const imgW = Math.min(contentW, 165);
+      const imgH = imgW / ratio;
+      const finalH = Math.min(imgH, height);
+      doc.setDrawColor(230, 233, 240);
+      doc.setLineWidth(0.2);
+      doc.roundedRect(margin - 1, y - 1, imgW + 2, finalH + 2, 2, 2, 'S');
+      doc.addImage(imgData, 'PNG', margin, y, imgW, finalH);
+      return y + finalH + 8;
+    } catch(e) {
+      return y;
+    }
+  }
+
+  function metricTable(rows, y, colWidths) {
+    if (y > H - 40) y = newPage();
+    doc.autoTable({
+      startY: y,
+      margin: { left: margin, right: margin },
+      head: [],
+      body: rows,
+      theme: 'plain',
+      styles: {
+        fontSize: 9,
+        cellPadding: { top: 3, bottom: 3, left: 5, right: 5 },
+        textColor: DARK,
+        lineColor: [230, 233, 240],
+        lineWidth: 0.15,
+        overflow: 'ellipsize',
+      },
+      columnStyles: colWidths || {
+        0: { fontStyle: 'bold', cellWidth: 52, textColor: [100, 105, 115] },
+        1: { cellWidth: 38, halign: 'right', fontStyle: 'bold' },
+        2: { cellWidth: 22, textColor: DIM, halign: 'right' },
+      },
+      alternateRowStyles: { fillColor: [248, 249, 252] },
+      didParseCell: function(data) {
+        const val = String(data.cell.raw || '');
+        if (val === 'PASS' || val === 'GOOD') data.cell.styles.textColor = GREEN;
+        if (val === 'FAIL' || val === 'HIGH') data.cell.styles.textColor = RED;
+      },
+    });
+    return doc.lastAutoTable.finalY + 8;
+  }
+
+  function fullWidthTable(head, body, y) {
+    if (y > H - 40) y = newPage();
+    doc.autoTable({
+      startY: y,
+      margin: { left: margin, right: margin },
+      head: [head],
+      body: body,
+      theme: 'grid',
+      styles: {
+        fontSize: 8.5,
+        cellPadding: { top: 3, bottom: 3, left: 4, right: 4 },
+        textColor: DARK,
+        lineColor: [230, 233, 240],
+        lineWidth: 0.2,
+        overflow: 'ellipsize',
+      },
+      headStyles: {
+        fillColor: [40, 75, 180],
+        textColor: WHITE,
+        fontStyle: 'bold',
+        fontSize: 8.5,
+      },
+      alternateRowStyles: { fillColor: [248, 249, 252] },
+    });
+    return doc.lastAutoTable.finalY + 8;
+  }
+
+  /* ── Cover page ── */
+  doc.setFillColor(...BRAND);
+  doc.rect(0, 0, W, H, 'F');
+
+  doc.setFillColor(24, 58, 150);
+  doc.rect(0, 0, W, 95, 'F');
+
+  doc.setFontSize(42);
+  doc.setFont(undefined, 'bold');
+  doc.setTextColor(...WHITE);
+  doc.text('CloudBench', W / 2, 48, { align: 'center' });
+
+  doc.setFontSize(13);
+  doc.setFont(undefined, 'normal');
+  doc.setTextColor(200, 215, 255);
+  doc.text('Database Performance Report', W / 2, 62, { align: 'center' });
+
+  doc.setDrawColor(255, 255, 255, 0.3);
+  doc.setLineWidth(0.5);
+  doc.line(W / 2 - 40, 70, W / 2 + 40, 70);
+
+  const cardX = margin + 8;
+  const cardW = contentW - 16;
+  const cardY = 110;
+  const labelCol = cardX + 10;
+  const valueCol = cardX + 55;
+  const maxValW = cardW - 60;
+
+  const serverVer = (db.server_version || 'Unknown');
+  const shortVer = serverVer.indexOf('\n') > -1 ? serverVer.split('\n')[0] : serverVer;
+  const cleanVer = shortVer.length > 60 ? shortVer.substring(0, 60) + '...' : shortVer;
+
+  const presetLabel = (d.preset || 'custom').charAt(0).toUpperCase() + (d.preset || 'custom').slice(1);
+
+  const coverFields = [
+    ['Host', hostName],
+    ['Engine', (db.dialect_family || 'Unknown').toUpperCase()],
+    ['Version', cleanVer],
+    ['Preset', presetLabel],
+    ['Date', `${dateStr}  ·  ${timeStr}`],
+    ['Baseline Ping', db.ping_ms ? db.ping_ms.toFixed(1) + ' ms' : 'N/A'],
+  ];
+
+  const rowH = 14;
+  const cardH = coverFields.length * rowH + 20;
+
+  doc.setFillColor(...WHITE);
+  doc.roundedRect(cardX, cardY, cardW, cardH, 5, 5, 'F');
+  doc.setDrawColor(220, 225, 235);
+  doc.setLineWidth(0.3);
+  doc.roundedRect(cardX, cardY, cardW, cardH, 5, 5, 'S');
+
+  let cy = cardY + 16;
+  coverFields.forEach(([lbl, val], i) => {
+    if (i > 0) {
+      doc.setDrawColor(235, 238, 242);
+      doc.setLineWidth(0.2);
+      doc.line(labelCol, cy - 9, cardX + cardW - 10, cy - 9);
+    }
+    doc.setFontSize(9);
+    doc.setFont(undefined, 'normal');
+    doc.setTextColor(...DIM);
+    doc.text(lbl, labelCol, cy);
+    doc.setFontSize(10.5);
+    doc.setFont(undefined, 'bold');
+    doc.setTextColor(...DARK);
+    doc.text(String(val), valueCol, cy, { maxWidth: maxValW });
+    cy += rowH;
+  });
+
+  doc.setFontSize(8.5);
+  doc.setFont(undefined, 'normal');
+  doc.setTextColor(180, 195, 255);
+  doc.text('Generated by CloudBench', W / 2, H - 22, { align: 'center' });
+  doc.setFontSize(7.5);
+  doc.setTextColor(150, 170, 230);
+  doc.text('Cloud Database Performance Benchmarking', W / 2, H - 16, { align: 'center' });
+
+  /* ── Executive Summary ── */
+  let y = newPage();
+  y = sectionTitle('Executive Summary', y);
+
+  const summaryRows = [];
+  (d.sqlio || []).forEach(s => {
+    const t = s.throughput, l = s.latency;
+    summaryRows.push([s.test_name, fmtNum(t.avg_ops_per_sec) + ' IOPS', l.p50_ms.toFixed(2) + ' ms', l.p99_ms.toFixed(2) + ' ms', t.error_rate_pct.toFixed(2) + '%']);
+  });
+  if (summaryRows.length) {
+    y = fullWidthTable(['Test', 'IOPS', 'p50 Latency', 'p99 Latency', 'Error Rate'], summaryRows, y);
+  }
+
+  const sim = d.sqliosim || [];
+  const stressSummary = [];
+  sim.forEach(s => {
+    const ig = s.integrity || {};
+    const cn = s.concurrency || {};
+    if (ig.pages_written > 0) stressSummary.push(['Data Integrity', ig.integrity_pass ? 'PASS' : 'FAIL', ig.pages_verified + ' pages verified', ig.corruptions_detected + ' corruptions']);
+    if (cn.total_transactions > 0) stressSummary.push(['Concurrency', fmtNum(cn.tps) + ' TPS', cn.committed + '/' + cn.total_transactions + ' committed', cn.deadlocks + ' deadlocks']);
+  });
+  if (stressSummary.length) {
+    y = subTitle('Stress & Integrity', y);
+    y = fullWidthTable(['Test', 'Result', 'Detail', 'Issues'], stressSummary, y);
+  }
+
+  if (d.dsb) {
+    y = subTitle('Analytical Queries', y);
+    const aq = [
+      ['Geometric Mean', d.dsb.geometric_mean_sec.toFixed(3) + ' s'],
+      ['Power Score', fmtNum(d.dsb.power_score)],
+      ['Queries Passed', d.dsb.queries.filter(q=>q.status==='ok').length + ' / ' + d.dsb.queries.length],
+      ['Total Runtime', d.dsb.total_runtime_sec.toFixed(1) + ' s'],
+      ['Fastest', d.dsb.fastest_query],
+      ['Slowest', d.dsb.slowest_query],
+    ];
+    y = metricTable(aq, y, { 0: { fontStyle:'bold', cellWidth:45, textColor:DIM }, 1: { cellWidth:50 } });
+  }
+
+  if (d.network) {
+    const n = d.network, p = n.ping_latency;
+    y = subTitle('Network Profile', y);
+    const nRows = [
+      ['Ping p50', p.p50_ms.toFixed(2) + ' ms'],
+      ['Ping p99', p.p99_ms.toFixed(2) + ' ms'],
+      ['Ping Jitter', p.jitter_ms.toFixed(2) + ' ms'],
+      ['Connection Setup p50', n.connection_setup.p50_ms.toFixed(1) + ' ms'],
+      ['DNS Resolution', n.dns_resolution_ms.toFixed(1) + ' ms'],
+      ['Upload', n.bandwidth_upload_mbps.toFixed(1) + ' MB/s'],
+      ['Download', n.bandwidth_download_mbps.toFixed(1) + ' MB/s'],
+    ];
+    y = metricTable(nRows, y, { 0: { fontStyle:'bold', cellWidth:50, textColor:DIM }, 1: { cellWidth:40, halign:'right' } });
+  }
+
+  /* ── I/O Detail Pages ── */
+  const sqlio = d.sqlio || [];
+  if (sqlio.length) {
+    y = newPage();
+    y = sectionTitle('I/O Performance Details', y);
+    y = descBlock(SECTION_DESC.io, y);
+
+    sqlio.forEach((s, i) => {
+      const t = s.throughput, l = s.latency;
+      y = subTitle(s.test_name, y);
+      const testKey = s.test_name.replace(/ /g, '_').toLowerCase();
+      if (TEST_DESC[testKey]) y = descBlock(TEST_DESC[testKey], y);
+
+      const rows = [
+        ['IOPS', fmtNum(t.avg_ops_per_sec), 'ops/s'],
+        ['Throughput', t.avg_mbps.toFixed(1), 'MB/s'],
+        ['Total Operations', fmtNum(t.total_ops), ''],
+        ['Error Rate', t.error_rate_pct.toFixed(2), '%'],
+        ['Duration', t.duration_sec.toFixed(1), 's'],
+      ];
+      y = metricTable(rows, y);
+
+      const latRows = [
+        ['Minimum', l.min_ms.toFixed(3), 'ms'],
+        ['p50 (Median)', l.p50_ms.toFixed(3), 'ms'],
+        ['p75', l.p75_ms.toFixed(3), 'ms'],
+        ['p90', l.p90_ms.toFixed(3), 'ms'],
+        ['p95', l.p95_ms.toFixed(3), 'ms'],
+        ['p99', l.p99_ms.toFixed(3), 'ms'],
+        ['p99.9', l.p999_ms.toFixed(3), 'ms'],
+        ['Maximum', l.max_ms.toFixed(3), 'ms'],
+        ['Mean', l.mean_ms.toFixed(3), 'ms'],
+        ['Std Dev', l.stddev_ms.toFixed(3), 'ms'],
+        ['Jitter', l.jitter_ms.toFixed(3), 'ms'],
+      ];
+      if (y > H - 80) y = newPage();
+      y = labelTag('Latency Distribution', y);
+      y = metricTable(latRows, y);
+
+      y = addChart('sqlio-lat-' + i, y, 55);
+
+      if (s.scalability) {
+        const sc = s.scalability;
+        if (y > H - 60) y = newPage();
+        y = labelTag('Thread Scaling', y);
+        const scRows = [
+          ['Peak IOPS', sc.peak_iops.toLocaleString(undefined,{maximumFractionDigits:0}), 'at ' + sc.peak_iops_threads + ' threads'],
+          ['Saturation Point', sc.saturation_point_threads + ' threads', ''],
+          ['Optimal Threads', sc.optimal_threads + ' threads', ''],
+          ['Serial Fraction', sc.amdahl_serial_fraction.toFixed(4), ''],
+        ];
+        y = metricTable(scRows, y);
+
+        if (sc.points && sc.points.length) {
+          const scHead = ['Threads', 'IOPS', 'p50 (ms)', 'p99 (ms)', 'Efficiency'];
+          const scBody = sc.points.map(p => [p.threads, fmtNum(p.iops), p.p50_ms.toFixed(2), p.p99_ms.toFixed(2), p.efficiency_pct.toFixed(1) + '%']);
+          y = fullWidthTable(scHead, scBody, y);
+        }
+
+        y = addChart('sqlio-sc-' + i, y, 55);
+      }
+
+      if (y > H - 50) y = newPage(); else y += 4;
+    });
+  }
+
+  /* ── Stress & Integrity Detail ── */
+  if (sim.length) {
+    y = newPage();
+    y = sectionTitle('Stress & Integrity Details', y);
+    y = descBlock(SECTION_DESC.stress, y);
+
+    sim.forEach(s => {
+      y = subTitle(s.test_name, y);
+      const testKey = s.test_name.replace(/ /g, '_').toLowerCase();
+      if (TEST_DESC[testKey]) y = descBlock(TEST_DESC[testKey], y);
+      const ig = s.integrity || {};
+      const cn = s.concurrency || {};
+      const au = s.data_integrity_audit || {};
+      const cl = s.commit_latency || {};
+      const rows = [];
+
+      if (ig.pages_written > 0) {
+        rows.push(['Integrity', ig.integrity_pass ? 'PASS' : 'FAIL', '']);
+        rows.push(['Pages Written', ig.pages_written, '']);
+        rows.push(['Pages Verified', ig.pages_verified, '']);
+        rows.push(['Corruptions', ig.corruptions_detected, '']);
+      }
+      if (cn.total_transactions > 0) {
+        rows.push(['TPS', fmtNum(cn.tps), 'txn/s']);
+        rows.push(['Committed', cn.committed + ' / ' + cn.total_transactions, '']);
+        rows.push(['Deadlocks', cn.deadlocks, '']);
+      }
+      if (au.balance_before > 0) {
+        rows.push(['Conservation', au.conservation_pass ? 'PASS' : 'FAIL', '']);
+        rows.push(['Balance Drift', '$' + au.balance_drift.toFixed(2), '']);
+      }
+      if (cl.count > 0) {
+        rows.push(['Commit p50', cl.p50_ms.toFixed(2), 'ms']);
+        rows.push(['Commit p99', cl.p99_ms.toFixed(2), 'ms']);
+        rows.push(['Commit Mean', cl.mean_ms.toFixed(2), 'ms']);
+      }
+      if (rows.length) y = metricTable(rows, y);
+      y += 4;
+    });
+  }
+
+  /* ── Analytical Queries Detail ── */
+  if (d.dsb) {
+    y = newPage();
+    y = sectionTitle('Analytical Query Details', y);
+    y = descBlock(SECTION_DESC.analytical, y);
+
+    y = labelTag(`Scale Factor: ${d.dsb.scale_factor}`, y);
+
+    const qHead = ['Query', 'Duration', 'Rows', 'Cold Run', 'Warm Run', 'Speedup', 'Status'];
+    const qBody = d.dsb.queries.map(q => [
+      q.query_id,
+      q.duration_sec.toFixed(3) + 's',
+      fmtNum(q.rows_returned),
+      q.cold_run_sec.toFixed(3) + 's',
+      q.warm_run_sec.toFixed(3) + 's',
+      q.cache_speedup_ratio.toFixed(1) + 'x',
+      q.status === 'ok' ? 'OK' : q.status.toUpperCase(),
+    ]);
+    y = fullWidthTable(qHead, qBody, y);
+
+    y = addChart('dsb-chart', y, 60);
+  }
+
+  /* ── Network Detail ── */
+  if (d.network) {
+    if (y > H - 80) y = newPage();
+    y = sectionTitle('Network Profile Details', y);
+    y = descBlock(SECTION_DESC.network, y);
+
+    const n = d.network, p = n.ping_latency, cs = n.connection_setup, fb = n.first_byte_latency;
+    const pingRows = [
+      ['p50', p.p50_ms.toFixed(3), 'ms'],
+      ['p75', p.p75_ms.toFixed(3), 'ms'],
+      ['p90', p.p90_ms.toFixed(3), 'ms'],
+      ['p95', p.p95_ms.toFixed(3), 'ms'],
+      ['p99', p.p99_ms.toFixed(3), 'ms'],
+      ['p99.9', p.p999_ms.toFixed(3), 'ms'],
+      ['Mean', p.mean_ms.toFixed(3), 'ms'],
+      ['Std Dev', p.stddev_ms.toFixed(3), 'ms'],
+      ['Jitter', p.jitter_ms.toFixed(3), 'ms'],
+    ];
+    y = labelTag('Ping Latency (SELECT 1)', y);
+    y = metricTable(pingRows, y);
+
+    const connRows = [
+      ['DNS Resolution', n.dns_resolution_ms.toFixed(1), 'ms'],
+      ['Connection Setup p50', cs.p50_ms.toFixed(1), 'ms'],
+      ['Connection Setup p99', cs.p99_ms.toFixed(1), 'ms'],
+      ['First Byte p50', fb.p50_ms.toFixed(2), 'ms'],
+      ['First Byte p99', fb.p99_ms.toFixed(2), 'ms'],
+      ['Upload Bandwidth', n.bandwidth_upload_mbps.toFixed(1), 'MB/s'],
+      ['Download Bandwidth', n.bandwidth_download_mbps.toFixed(1), 'MB/s'],
+    ];
+    if (y > H - 60) y = newPage();
+    y = labelTag('Connection & Bandwidth', y);
+    y = metricTable(connRows, y);
+
+    y = addChart('net-chart', y, 55);
+  }
+
+  /* ── Errors ── */
+  const errors = d.errors || [];
+  if (errors.length) {
+    if (y > H - 40) y = newPage();
+    y = sectionTitle('Errors', y);
+    const eBody = errors.map(e => [e.test, e.error]);
+    y = fullWidthTable(['Test', 'Error'], eBody, y);
+  }
+
+  /* ── Appendix A: Test Definitions ── */
+  y = newPage();
+  y = sectionTitle('Appendix A — Test Definitions', y);
+  y = descBlock('Complete reference of every test executed by CloudBench, including methodology, what is measured, and how to interpret the results.', y);
+
+  const APPENDIX_TESTS = [
+    { name: 'Random Read (I/O)',
+      desc: 'Executes SELECT payload FROM test_table WHERE id = :random_pk using randomly chosen primary keys across a scaling thread sweep (e.g., 1, 2, 4, 8, 16, 32 threads). Each operation exercises the full cloud database I/O path: B-tree clustered index seek (O(log n) complexity), single-page buffer pool fetch (or storage-layer read on cache miss), result serialization into the wire protocol (TDS, PostgreSQL protocol, or MySQL protocol), TLS record framing and encryption, and TCP network round-trip back to the client.\n\nThis is the fundamental performance primitive for cloud databases — directly analogous to 4KB random read IOPS on block storage. The thread sweep builds a throughput-vs-concurrency curve that reveals the saturation point (where adding connections stops improving IOPS), the optimal thread count (highest IOPS-per-connection), and Amdahl\'s serial fraction (the portion of the workload that cannot be parallelized). Compare measured IOPS against your cloud tier\'s documented limits to determine headroom.' },
+    { name: 'Random Write (I/O)',
+      desc: 'Executes UPDATE test_table SET payload = :random_data WHERE id = :random_pk under increasing thread concurrency. Each write involves: index seek to locate the target row, row-level lock acquisition (or page lock on some engines), in-place page modification in the buffer pool, synchronous write-ahead log (WAL / redo log / transaction log) flush to durable storage, and lock release.\n\nWrites are typically 2–5× slower than reads because every write must survive a crash — the synchronous WAL flush is the serialization bottleneck that all concurrent writers share. The thread scaling curve for writes directly reveals: WAL throughput limits, lock contention behavior under increasing concurrency, and the point at which adding connections increases latency without improving throughput. A high serial fraction (> 0.15) indicates the WAL is the binding constraint.' },
+    { name: 'Sequential Scan (I/O)',
+      desc: 'Executes SELECT * FROM test_table — a full table scan reading every row in physical storage order. Unlike random I/O tests (which are latency-bound by network RTT and index seeks), sequential scan is bandwidth-bound — it measures how fast the database can stream large result sets from storage through the buffer pool, across the network, and into the client.\n\nPerformance is determined by: storage sequential read throughput, buffer pool read-ahead efficiency (how well the engine pre-fetches pages it knows it will need), result set serialization speed, TCP window scaling behavior, and TLS encryption overhead on large payloads. The throughput (MB/s) should approach your cloud tier\'s documented sequential I/O bandwidth minus protocol overhead.' },
+    { name: 'Mixed Read/Write (I/O)',
+      desc: 'Runs a concurrent mix of 70% point reads (SELECT by PK) and 30% single-row UPDATEs across multiple threads, simulating a realistic OLTP workload. This test reveals the read/write interference factor — how much concurrent writes degrade read performance through buffer pool page invalidation, row-level lock contention, and WAL flush serialization.\n\nThe ratio of mixed IOPS to pure read IOPS quantifies this interference: a ratio near 1.0 means writes cause minimal disruption; a ratio below 0.6 indicates significant write-path contention that may require schema optimization (e.g., covering indexes to avoid lookups), workload isolation (read replicas), or tier upgrade (faster log subsystem). This is the most representative test for typical OLTP application performance.' },
+    { name: 'Bulk Insert (I/O)',
+      desc: 'Inserts rows in multi-row INSERT batches (e.g., 100 rows per statement) to measure sustained write ingestion throughput. Performance is governed by: transaction log write bandwidth (the primary bottleneck for most cloud databases), B-tree page splits (when new keys fall between existing index entries, the page must be split and redistributed), index maintenance overhead (each additional secondary index multiplies the per-row insert cost), auto-statistics update triggers (which can pause inserts while statistics are recomputed), and checkpoint interference (periodic dirty-page flushing competes for I/O bandwidth).\n\nDirectly relevant for ETL pipelines, Change Data Capture (CDC) replication targets, event streaming ingestion, and any workload that bulk-loads data. Results are reported as rows/second and MB/s.' },
+    { name: 'Connection Pool Stress (I/O)',
+      desc: 'Fires bursts of SELECT 1 queries at escalating concurrency levels (1 → 5 → 10 → 20 → 40 → 60 → 80 → 100 → 150 → 200 simultaneous connections) to map the connection handling behavior under stress. At low concurrency, checkout latency should match the baseline ping. As concurrency increases, the test identifies: the saturation point (where latency begins to spike due to connection pool exhaustion, database-side worker thread scheduling, or session memory pressure), the failure threshold (where new connections are refused with max_connections or login timeout errors), and per-burst p50/p99 latency.\n\nUse these results to size your application\'s max_pool_size parameter and to detect cloud-imposed connection limits that may not be documented. Many cloud database tiers silently throttle connections before reaching the advertised max_connections value.' },
+    { name: 'Data Integrity (Stress)',
+      desc: 'Writes random binary pages of configurable size (matching the I/O block size) along with their SHA-256 cryptographic hashes into the database under concurrent thread load. After all writes complete, a statistical sample of pages is read back, the SHA-256 hash is recomputed from the retrieved binary data, and compared against the stored hash.\n\nThis detects: silent storage-layer corruption (bit rot in the underlying cloud storage), network transport errors beyond what TCP/TLS checksums catch (such as memory corruption in network interface buffers), database engine bugs in page management (incorrect page splits, torn writes), and driver-level serialization issues (endianness problems, binary encoding errors). SHA-256 has a collision probability of approximately 1 in 2^128, making false negatives effectively impossible.\n\nAny hash mismatch is a FAIL — a critical finding indicating data corruption somewhere in the end-to-end pipeline. This should be investigated immediately and escalated to the cloud provider if the storage layer is suspected.' },
+    { name: 'Concurrent Transactions (Stress)',
+      desc: 'Creates a set of bank accounts with known initial balances, then executes thousands of concurrent balance-transfer transactions (debit account A by $X, credit account B by $X within a single BEGIN/COMMIT block). After all transactions complete, the test verifies that SUM(all_balances) equals the original total — the monetary conservation invariant.\n\nThis tests the database\'s core ACID guarantees under realistic contention:\n• Atomicity — partial transfers (debit without credit) must not persist after a crash or rollback\n• Consistency — account balances must remain non-negative (or at least the sum must be conserved)\n• Isolation — concurrent transfers must not see each other\'s intermediate states\n• Durability — committed transfers must survive process termination\n\nThe test also measures: transactions per second (TPS), deadlock frequency and recovery, commit latency distribution (p50/p99), and the committed/total ratio. A balance drift > $0.01 is a FAIL indicating a serialization violation.' },
+    { name: 'Isolation Level Testing (Stress)',
+      desc: 'Systematically tests each transaction isolation level supported by the database engine by executing known anomaly-producing patterns and checking whether the database correctly prevents them.\n\nIsolation levels tested (where supported): READ UNCOMMITTED, READ COMMITTED, REPEATABLE READ, SERIALIZABLE, and SNAPSHOT.\n\nAnomalies tested:\n• Dirty Read — Transaction A reads uncommitted data written by Transaction B. Should be prevented at READ COMMITTED and above.\n• Non-Repeatable Read — Transaction A reads a row, Transaction B modifies and commits it, Transaction A re-reads and gets different data. Should be prevented at REPEATABLE READ and above.\n• Phantom Read — Transaction A executes a range query, Transaction B inserts a new row in that range and commits, Transaction A re-executes and sees the new row. Should be prevented at SERIALIZABLE.\n• Write Skew — Two transactions read overlapping data, then make disjoint updates that together violate a constraint. Only prevented by SERIALIZABLE or explicit locking.\n\nThis validates that the database\'s actual behavior matches its documented isolation guarantees — some cloud databases advertise SERIALIZABLE but implement it as snapshot isolation, which does not prevent write skew.' },
+    { name: 'Analytical Queries (Decision Support)',
+      desc: 'Generates a normalized star-schema dataset (zones, countries, vendors, buyers, products, inventory, sale orders, order details) scaled by a configurable factor, then executes 16 original decision-support queries covering the full range of SQL optimizer code paths:\n\n• Multi-way hash/merge/nested-loop joins across 4+ tables\n• Correlated subqueries with EXISTS and NOT EXISTS\n• Aggregation with GROUP BY, HAVING, CASE expressions\n• Common Table Expressions (CTEs) and derived tables\n• ORDER BY with LIMIT/TOP for ranking queries\n• LEFT JOIN distributions and NULL handling\n• Date range filtering and string pattern matching\n\nEach query runs cold (first execution — no plan cache, cold buffer pool) and warm (immediate re-execution — cached plan, warm buffer pool) to measure plan compilation overhead and cache effectiveness. The cold/warm ratio reveals how much the optimizer\'s plan cache benefits your analytical workload.\n\nComposite metrics: Geometric Mean (exp(Σ ln(duration_i) / N)) fairly weights all queries regardless of magnitude. Power Score ((3600 × Scale_Factor) / Geometric_Mean) normalizes throughput for cross-comparison across scale factors.' },
+    { name: 'Network Profiling',
+      desc: 'Isolates the transport layer from the database compute layer to distinguish network-bound vs. compute-bound performance limits. Each measurement targets a specific segment of the connection lifecycle:\n\n• DNS Resolution — Times the hostname-to-IP resolution through the OS resolver, detecting slow resolvers, CNAME chain traversal, and DNS cache behavior.\n• Ping Latency — Executes SELECT 1 repeatedly (30–100 pings depending on preset) with full percentile distribution (p50, p75, p90, p95, p99, p99.9). This is the irreducible floor for any database operation.\n• Connection Setup — Times TCP three-way handshake + TLS negotiation (2 RTTs for TLS 1.2, 1 RTT for TLS 1.3) + database authentication + session initialization. This is the cost your connection pool amortizes with every reused connection.\n• First Byte Latency — Time from conn.execute() to first row received for a 1000-row query. Measures query compilation + index scan initiation + first page read + initial network transfer. The delta from ping latency reveals server-side query processing overhead.\n• Upload Bandwidth — Client-to-database transfer rate via timed bulk INSERT of rows with 1KB payloads, reported in MB/s.\n• Download Bandwidth — Database-to-client transfer rate via timed SELECT of all bandwidth test rows, reported in MB/s.\n\nThese measurements provide the baseline context needed to interpret all other test results — if your ping is 50ms, every operation pays at least 50ms regardless of the database tier.' },
+  ];
+
+  APPENDIX_TESTS.forEach(t => {
+    if (y > H - 50) y = newPage();
+    doc.setFontSize(11);
+    doc.setFont(undefined, 'bold');
+    doc.setTextColor(35, 134, 209);
+    doc.text(t.name, 18, y);
+    doc.setTextColor(60, 65, 75);
+    y += 6;
+    y = descBlock(t.desc, y);
+    y += 2;
+  });
+
+  /* ── Appendix B: Metric Definitions ── */
+  y = newPage();
+  y = sectionTitle('Appendix B — Metric Definitions', y);
+  y = descBlock('Complete reference of every metric reported by CloudBench. Metrics are grouped by category. Thresholds and interpretation guidance are provided for each.', y);
+
+  const APPENDIX_METRICS = [
+    { category: 'Throughput Metrics', metrics: [
+      { name: 'IOPS', desc: 'I/O Operations Per Second — the count of discrete SQL operations (SELECT or UPDATE of a single row by primary key) completed per wall-clock second across all active threads. Directly analogous to random-access IOPS on block storage. Bounded by: network round-trip time, connection pool depth, row-level lock contention, and the backend storage I/O subsystem. Compare against your cloud tier\'s documented IOPS limit to determine remaining headroom.' },
+      { name: 'Throughput (MB/s)', desc: 'Aggregate data transfer rate measured at the application layer. Calculated as (block_size × completed_operations) / elapsed_time. Includes all overhead: SQL protocol framing, TLS encryption, TCP segmentation, and client-side deserialization. Compare with your cloud tier\'s documented network bandwidth per vCPU to distinguish NIC saturation from storage bottlenecks.' },
+      { name: 'TPS', desc: 'Committed transactions per second. Each transaction performs a complete balance transfer between two random accounts: read balance → compute new balance → update row → commit. Encompasses the full ACID cost: lock acquisition, WAL synchronous write, group commit flush latency, and lock release. TPS is typically 10–100× lower than IOPS because each transaction involves multiple round-trips and synchronous durability guarantees.' },
+      { name: 'Rows/sec', desc: 'Insert throughput for bulk write operations — the number of rows successfully inserted per second during batch INSERT statements. Affected by: transaction log bandwidth, page split frequency, index maintenance cost, and auto-statistics triggers.' },
+      { name: 'Error Rate', desc: 'Fraction of operations that raised an exception (timeout, connection reset, deadlock abort, etc.) as a percentage of total attempted. Well-provisioned cloud databases should show < 0.1%. Rates above 1% indicate: connection pool exhaustion, DTU/vCore limit throttling, hitting max_connections, or aggressive query timeout settings.' },
+    ]},
+    { category: 'Latency Metrics', metrics: [
+      { name: 'p50 (Median)', desc: 'The 50th percentile — half of all operations complete faster than this value. Represents steady-state user experience. On cloud databases, p50 is dominated by: network RTT + query plan lookup + index seek + buffer pool page read. When p50 matches your measured ping latency, there is zero server-side queueing delay.' },
+      { name: 'p75', desc: 'The 75th percentile — 25% of operations exceed this latency. The gap between p50 and p75 reveals the spread of "normal" operations before tail effects appear.' },
+      { name: 'p90', desc: 'The 90th percentile — 10% of operations exceed this. At this level, occasional buffer pool misses, minor lock waits, and network path variance begin to appear.' },
+      { name: 'p95', desc: 'The 95th percentile — 5% of operations exceed this. Often the threshold used in SLA definitions (e.g., "95% of queries complete within 10ms").' },
+      { name: 'p99', desc: '99th percentile latency — only 1 in 100 operations exceeds this value. Tail latency at this level is typically caused by: garbage collection pauses on the database VM, log flush waits (when the WAL write queue is full), lock escalation events, buffer pool misses forcing synchronous storage I/O, or cloud-provider noisy-neighbor CPU throttling. A p99 exceeding 10× the p50 signals serious tail-latency variance.' },
+      { name: 'p99.9', desc: 'The 99.9th percentile — 1 in 1,000 operations exceeds this. Captures extreme outliers: VM live migrations, storage failovers, TCP retransmissions, and cloud-level rate limiting events. Relevant for systems with strict latency SLAs.' },
+      { name: 'Min / Max', desc: 'The absolute fastest and slowest operations observed during the test. Min typically represents an ideal case (warm cache, no contention, fast network path). Max captures the worst-case event (could be a VM migration, storage timeout, or deadlock retry).' },
+      { name: 'Mean / StdDev', desc: 'Arithmetic mean and standard deviation of all operation latencies. While percentiles are more robust for skewed distributions, mean/stddev are useful for statistical modeling and confidence interval calculation.' },
+      { name: 'Jitter', desc: 'Mean absolute difference between consecutive latency measurements (ms). Quantifies operational stability. Low jitter (< 1ms) indicates predictable scheduling; high jitter suggests OS context switching, VM CPU steal time, variable network path latency (common in multi-AZ), or storage I/O scheduler reordering.' },
+      { name: 'Coefficient of Variation (CV)', desc: 'StdDev / Mean, expressed as a ratio. A dimensionless measure of relative variability. CV < 0.3 indicates consistent performance; CV > 1.0 indicates highly variable latency that makes capacity planning unreliable.' },
+    ]},
+    { category: 'Scalability Metrics', metrics: [
+      { name: 'Peak IOPS', desc: 'The highest I/O operations per second observed across all thread counts in the scaling sweep. This represents the maximum throughput the database delivered during the test. Compare against your cloud tier\'s documented IOPS limits to gauge how much headroom remains before hitting the storage or compute ceiling.' },
+      { name: 'Saturation Point', desc: 'The thread count at which throughput (IOPS) stops increasing — adding more connections yields < 5% improvement. Beyond saturation, additional concurrency only increases latency. When saturation occurs below your application\'s connection pool size, the database (not the client) is the bottleneck. Check cloud dashboard metrics: CPU%, DTU%, IOPS limits, or worker thread exhaustion.' },
+      { name: 'Optimal Thread Count', desc: 'The thread count yielding the highest IOPS-per-thread efficiency ratio. Operating above optimal wastes connections and increases tail latency. Set your application\'s pool_size ≈ optimal_threads per instance, then scale horizontally if more aggregate throughput is needed.' },
+      { name: 'Amdahl\'s Serial Fraction (f)', desc: 'Derived from the scaling sweep using Amdahl\'s Law: Speedup = 1 / (f + (1-f)/N), solved for f. Represents the fraction of the workload forced through a single-threaded bottleneck. f = 0.01–0.05: excellent parallelism (indexed reads). f = 0.05–0.15: moderate serialization (typical writes — WAL flush). f = 0.15–0.30: significant contention (lock escalation, page latch waits). f > 0.30: heavily serialized — throughput will never exceed ~3× single-threaded regardless of connection count.' },
+      { name: 'Thread Scaling Efficiency', desc: 'Percentage of ideal linear scaling achieved at each thread count. Efficiency = (IOPS_at_N / (IOPS_at_1 × N)) × 100%. 100% means perfect linear scaling; below 50% means more than half the potential parallelism is lost to serialization overhead.' },
+    ]},
+    { category: 'Integrity & Correctness Metrics', metrics: [
+      { name: 'Integrity PASS/FAIL', desc: 'SHA-256 verification result. PASS means every sampled page\'s recomputed hash matched the stored hash — zero corruption detected. FAIL means at least one page was corrupted between write and read, indicating a defect in the storage layer, network transport, or database engine. This is a binary, critical finding.' },
+      { name: 'Pages Written / Verified', desc: 'Total binary pages written to the database and the number subsequently sampled and verified. The verification sample provides a statistical confidence level: verifying 100 out of 1,000 pages provides ~95% confidence of detecting a 3% corruption rate.' },
+      { name: 'Balance Conservation (Drift)', desc: 'The difference between the expected sum of all account balances and the actual sum after concurrent transactions. Drift < $0.01 is PASS (within floating-point rounding tolerance). Any measurable drift indicates a serializability violation — concurrent transactions corrupted each other\'s writes. This is a critical correctness failure.' },
+      { name: 'Committed / Total Ratio', desc: 'Fraction of attempted transactions that successfully committed. The gap represents: deadlock victims (rolled back by the database\'s deadlock detector), lock timeout aborts, serialization failures (in strict isolation modes), and connection errors. Below 90% suggests the concurrency level exceeds the database\'s lock manager capacity.' },
+      { name: 'Deadlock Count', desc: 'Number of transactions aborted due to deadlock detection (wait-for graph cycle). Some deadlocks are expected under random high-contention access. < 1% of transactions: normal. 1–5%: hot-row contention — consider row-level partitioning. > 5%: likely requires schema redesign, reduced concurrency, or explicit lock ordering.' },
+    ]},
+    { category: 'Analytical Query Metrics', metrics: [
+      { name: 'Geometric Mean (seconds)', desc: 'exp(Σ ln(duration_i) / N) across all successful queries. Preferred over arithmetic mean because it fairly weights queries across different magnitude ranges — a 0.1s query and a 100s query contribute equally. This is the standard composite metric used in decision-support benchmarks. Lower is better.' },
+      { name: 'Power Score', desc: '(3600 × Scale_Factor) / Geometric_Mean. Represents theoretical query-streams per hour, normalized by dataset size. Higher is better. Enables cross-comparison between runs at different scale factors and different database engines. For context: power score 100 at SF=0.01 means the system could theoretically process 100 complete 16-query streams per hour.' },
+      { name: 'Cold Duration', desc: 'Query execution time on first run — no plan cache, cold buffer pool. Includes: SQL parsing, query optimization (join ordering, index selection, cost estimation), plan compilation, physical execution, and result transfer. The optimizer\'s work is a significant fraction of cold duration for complex multi-join queries.' },
+      { name: 'Warm Duration', desc: 'Query execution time on immediate re-execution — cached plan, warm buffer pool. The difference between cold and warm reveals plan cache effectiveness. A warm/cold ratio < 0.5 indicates substantial compilation overhead that benefits from plan caching. A ratio near 1.0 means the query is execution-bound, not compilation-bound.' },
+      { name: 'Query Status', desc: 'Per-query completion status: "ok" (completed successfully), "error" (failed with an exception — typically syntax incompatibility, timeout, or insufficient tempdb), or "skipped" (excluded from the current preset level).' },
+      { name: 'Row Count', desc: 'Number of rows returned by each query. Useful for verifying correctness across database engines — the same query at the same scale factor should return the same row count regardless of the underlying engine.' },
+    ]},
+    { category: 'Network Metrics', metrics: [
+      { name: 'DNS Resolution (ms)', desc: 'Time to resolve the database FQDN to an IP address via the OS resolver. Includes local cache lookup or recursive DNS query. Cloud database hostnames often traverse CNAME chains (e.g., Azure Traffic Manager → regional endpoint → instance). Values > 50ms suggest DNS cache misses or slow recursive resolvers.' },
+      { name: 'Ping p50 / p99 (ms)', desc: 'SELECT 1 round-trip time at median and 99th percentile. The irreducible latency floor for any database operation. Includes: client socket write → network transit → TLS record processing → SQL parse/execute → result serialization → network return → client read. Same-region: 1–5ms typical. Cross-region: 20–80ms. Every database operation pays at least this cost.' },
+      { name: 'Ping Jitter (ms)', desc: 'Mean absolute difference between consecutive ping samples. Quantifies network path stability. < 0.5ms: excellent (dedicated/premium networking). 0.5–2ms: typical shared cloud networking. > 5ms: routing instability or traffic shaping. High jitter degrades connection pool efficiency and complicates timeout tuning.' },
+      { name: 'Connection Setup (ms)', desc: 'Time to establish a brand-new database connection from scratch: TCP three-way handshake + TLS negotiation (2 RTTs for TLS 1.2, 1 RTT for TLS 1.3) + database authentication + session initialization. Typically 3–10× the ping latency. This is the cost your connection pool amortizes — if pool_size is too small and connections churn, this overhead hits every request.' },
+      { name: 'First Byte p50 (ms)', desc: 'Median time from conn.execute() to first row received for a multi-row query. Unlike ping (zero-data payload), this returns 1,000 rows, measuring: query plan compilation/cache lookup + index scan initiation + first page read + result serialization + initial TCP segment. The delta from ping latency isolates server-side processing overhead.' },
+      { name: 'Upload Bandwidth (MB/s)', desc: 'Client-to-database transfer rate via timed bulk INSERT of 1KB-row payloads. Factors in: parameterized query parsing, transaction log writes, index maintenance, and TCP upload throughput. Compare with your cloud tier\'s documented ingress bandwidth limits.' },
+      { name: 'Download Bandwidth (MB/s)', desc: 'Database-to-client transfer rate via timed SELECT of all bandwidth test rows. Factors in: sequential scan speed, row serialization to wire protocol, TLS framing, and TCP download throughput. Cloud providers typically offer asymmetric bandwidth — download is often higher than upload.' },
+    ]},
+  ];
+
+  APPENDIX_METRICS.forEach(cat => {
+    if (y > H - 40) y = newPage();
+    doc.setFontSize(12);
+    doc.setFont(undefined, 'bold');
+    doc.setTextColor(35, 134, 209);
+    doc.text(cat.category, 18, y);
+    doc.setTextColor(60, 65, 75);
+    y += 7;
+
+    cat.metrics.forEach(m => {
+      if (y > H - 35) y = newPage();
+      doc.setFontSize(9.5);
+      doc.setFont(undefined, 'bold');
+      doc.setTextColor(40, 45, 55);
+      doc.text(m.name, 20, y);
+      y += 4.5;
+      doc.setFont(undefined, 'normal');
+      doc.setFontSize(8.2);
+      doc.setTextColor(80, 85, 95);
+      const lines = doc.splitTextToSize(m.desc, W - 40);
+      if (y + lines.length * 3.5 > H - 20) y = newPage();
+      doc.text(lines, 20, y);
+      y += lines.length * 3.5 + 4;
+    });
+  });
+
+  addFooter();
+  doc.save(_exportFilename('pdf'));
+}
+
+function _csvCell(v) {
+  const s = String(v ?? '');
+  return s.includes(',') || s.includes('"') || s.includes('\n') ? '"' + s.replace(/"/g, '""') + '"' : s;
+}
+
+function _exportFilename(ext) {
+  const d = benchmarkResults;
+  const db = d.database_info || {};
+  const ts = new Date(d.timestamp * 1000).toISOString().replace(/[:.]/g, '-').slice(0, 19);
+  const host = (db.host || 'unknown').replace(/[^a-zA-Z0-9.-]/g, '_');
+  return `benchmark_${host}_${d.preset||'custom'}_${ts}.${ext}`;
+}
+
+function _download(blob, filename) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = filename;
+  document.body.appendChild(a); a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+init();
+</script>
+</body>
+</html>

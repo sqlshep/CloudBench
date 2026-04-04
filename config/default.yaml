@@ -1,0 +1,41 @@
+database:
+  dialect: "postgresql+psycopg"
+  host: "${DB_HOST}"
+  port: 5432
+  database: "benchmarks"
+  username: "${DB_USER}"
+  password: "${DB_PASSWORD}"
+  ssl_mode: "require"
+  pool_size: 20
+  max_overflow: 40
+  driver_options: {}
+
+sqlio:
+  table_rows: 1000000
+  block_size: 8192
+  thread_counts: [1, 4, 8, 16, 32]
+  ops_per_run: 10000
+  warmup_ops: 500
+
+sqliosim:
+  page_size: 8192
+  write_cycles: 10000
+  verify_sample_pct: 0.2
+  threads: 16
+  account_count: 10000
+
+dsb:
+  scale_factor: 1.0
+  query_timeout_sec: 300
+  iterations: 1
+
+network:
+  ping_count: 100
+  connection_count: 50
+  bandwidth_rows: 5000
+
+reporting:
+  output_dir: "results"
+  html_report: true
+  json_report: true
+  console_output: true

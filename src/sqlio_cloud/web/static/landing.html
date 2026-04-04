@@ -1,0 +1,574 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CloudBench — Your Cloud Performance Lab</title>
+<style>
+:root {
+  --bg: #0a0e17; --bg2: #111827; --bg3: #1a2332;
+  --text: #c9d1d9; --text-dim: #8b949e; --text-bright: #f0f6fc;
+  --blue: #3b82f6; --blue-light: #60a5fa; --blue-dark: #1e40af;
+  --green: #3fb950; --cyan: #06b6d4; --purple: #a78bfa;
+  --border: #1e293b;
+  --radius: 12px;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
+  background: var(--bg); color: var(--text); min-height: 100vh;
+  overflow-x: hidden;
+}
+
+/* Hero */
+.hero {
+  position: relative;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 3rem 2rem;
+}
+.hero::before {
+  content: '';
+  position: absolute; inset: 0;
+  background:
+    radial-gradient(ellipse 80% 60% at 50% -10%, rgba(59,130,246,0.15), transparent),
+    radial-gradient(ellipse 60% 50% at 80% 50%, rgba(6,182,212,0.08), transparent),
+    radial-gradient(ellipse 60% 50% at 20% 50%, rgba(167,139,250,0.08), transparent);
+  pointer-events: none;
+}
+.hero-grid {
+  position: absolute; inset: 0;
+  background-image:
+    linear-gradient(rgba(59,130,246,0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(59,130,246,0.04) 1px, transparent 1px);
+  background-size: 60px 60px;
+  mask-image: radial-gradient(ellipse 70% 70% at 50% 50%, black, transparent);
+  pointer-events: none;
+}
+
+.hero-content { position: relative; z-index: 1; max-width: 800px; }
+
+.app-logo {
+  font-size: 4.5rem;
+  line-height: 1;
+  margin-bottom: 0.5rem;
+}
+.app-title {
+  font-size: 3.2rem;
+  font-weight: 800;
+  color: var(--blue-light);
+  letter-spacing: -0.02em;
+  line-height: 1;
+  margin-bottom: 0.3rem;
+}
+.app-tagline {
+  font-size: 1.15rem;
+  color: var(--text-dim);
+  letter-spacing: 0.01em;
+}
+
+.badge {
+  display: inline-block;
+  padding: 0.35rem 1rem;
+  border: 1px solid var(--border);
+  border-radius: 100px;
+  font-size: 0.78rem;
+  color: var(--cyan);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  margin-bottom: 2rem;
+  background: rgba(6,182,212,0.06);
+}
+
+.hero h1 {
+  font-size: 3.5rem;
+  font-weight: 700;
+  color: var(--text-bright);
+  line-height: 1.1;
+  margin-bottom: 0.75rem;
+  letter-spacing: -0.02em;
+}
+.hero h1 .highlight {
+  background: linear-gradient(135deg, var(--blue-light), var(--cyan));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.hero-subtitle {
+  font-size: 1.2rem;
+  color: var(--text-dim);
+  line-height: 1.6;
+  max-width: 620px;
+  margin: 0 auto 1rem;
+}
+
+.hero-legacy {
+  font-size: 0.88rem;
+  color: var(--text-dim);
+  max-width: 580px;
+  margin: 0 auto 2.5rem;
+  line-height: 1.6;
+  border-left: 2px solid var(--blue-dark);
+  padding-left: 1rem;
+  text-align: left;
+}
+.hero-legacy strong { color: var(--blue-light); }
+
+.cta-group {
+  display: flex;
+  gap: 1rem;
+  justify-content: center;
+  flex-wrap: wrap;
+  margin-bottom: 3rem;
+}
+.btn-primary {
+  padding: 0.85rem 2.2rem;
+  background: linear-gradient(135deg, var(--blue), var(--blue-dark));
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: transform 0.15s, box-shadow 0.15s;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.btn-primary:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 30px rgba(59,130,246,0.35);
+}
+.btn-secondary {
+  padding: 0.85rem 2.2rem;
+  background: transparent;
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 1rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: border-color 0.15s, color 0.15s;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.btn-secondary:hover { border-color: var(--blue); color: var(--blue-light); }
+
+/* Stats bar */
+.stats-bar {
+  display: flex;
+  gap: 3rem;
+  justify-content: center;
+  flex-wrap: wrap;
+  padding-top: 2rem;
+  border-top: 1px solid var(--border);
+}
+.stat { text-align: center; }
+.stat-value {
+  font-size: 1.8rem;
+  font-weight: 700;
+  color: var(--text-bright);
+  line-height: 1;
+}
+.stat-label {
+  font-size: 0.78rem;
+  color: var(--text-dim);
+  margin-top: 0.3rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+/* Features */
+.features {
+  padding: 5rem 2rem;
+  max-width: 1100px;
+  margin: 0 auto;
+}
+.features-header {
+  text-align: center;
+  margin-bottom: 3.5rem;
+}
+.features-header h2 {
+  font-size: 2rem;
+  color: var(--text-bright);
+  margin-bottom: 0.5rem;
+}
+.features-header p {
+  color: var(--text-dim);
+  font-size: 1.05rem;
+}
+.feature-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 1.5rem;
+}
+.feature-card {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1.8rem;
+  transition: border-color 0.2s, transform 0.2s;
+}
+.feature-card:hover {
+  border-color: var(--blue-dark);
+  transform: translateY(-3px);
+}
+.feature-icon {
+  width: 44px; height: 44px;
+  border-radius: 10px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 1.3rem;
+  margin-bottom: 1rem;
+}
+.feature-icon.blue { background: rgba(59,130,246,0.12); color: var(--blue-light); }
+.feature-icon.green { background: rgba(63,185,80,0.12); color: var(--green); }
+.feature-icon.cyan { background: rgba(6,182,212,0.12); color: var(--cyan); }
+.feature-icon.purple { background: rgba(167,139,250,0.12); color: var(--purple); }
+
+.feature-card h3 {
+  font-size: 1.1rem;
+  color: var(--text-bright);
+  margin-bottom: 0.5rem;
+}
+.feature-card p {
+  font-size: 0.88rem;
+  color: var(--text-dim);
+  line-height: 1.6;
+}
+
+/* How it works */
+.how-it-works {
+  padding: 4rem 2rem 5rem;
+  max-width: 900px;
+  margin: 0 auto;
+}
+.how-it-works h2 {
+  font-size: 2rem;
+  color: var(--text-bright);
+  text-align: center;
+  margin-bottom: 3rem;
+}
+.step-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  position: relative;
+}
+.step-list::before {
+  content: '';
+  position: absolute;
+  left: 23px;
+  top: 24px;
+  bottom: 24px;
+  width: 2px;
+  background: linear-gradient(to bottom, var(--blue), var(--cyan), var(--green));
+  border-radius: 1px;
+}
+.step-item {
+  display: flex;
+  gap: 1.5rem;
+  padding: 1.5rem 0;
+  position: relative;
+}
+.step-num {
+  width: 48px; height: 48px;
+  border-radius: 50%;
+  background: var(--bg2);
+  border: 2px solid var(--blue);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 1.1rem; font-weight: 700;
+  color: var(--blue-light);
+  flex-shrink: 0;
+  z-index: 1;
+}
+.step-text h3 {
+  font-size: 1.1rem;
+  color: var(--text-bright);
+  margin-bottom: 0.35rem;
+}
+.step-text p {
+  font-size: 0.88rem;
+  color: var(--text-dim);
+  line-height: 1.6;
+}
+
+/* Databases */
+.databases {
+  padding: 4rem 2rem;
+  max-width: 900px;
+  margin: 0 auto;
+  text-align: center;
+}
+.databases h2 {
+  font-size: 2rem;
+  color: var(--text-bright);
+  margin-bottom: 0.5rem;
+}
+.databases > p {
+  color: var(--text-dim);
+  margin-bottom: 2.5rem;
+}
+.db-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 1rem;
+}
+.db-card {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1.5rem 1rem;
+  text-align: center;
+}
+.db-card h4 {
+  color: var(--text-bright);
+  font-size: 0.95rem;
+  margin-bottom: 0.4rem;
+}
+.db-card p {
+  color: var(--text-dim);
+  font-size: 0.78rem;
+  line-height: 1.5;
+}
+
+/* CTA Section */
+.cta-section {
+  padding: 5rem 2rem;
+  text-align: center;
+  position: relative;
+}
+.cta-section::before {
+  content: '';
+  position: absolute; inset: 0;
+  background: radial-gradient(ellipse 80% 60% at 50% 100%, rgba(59,130,246,0.1), transparent);
+  pointer-events: none;
+}
+.cta-section h2 {
+  font-size: 2.2rem;
+  color: var(--text-bright);
+  margin-bottom: 0.75rem;
+  position: relative;
+}
+.cta-section p {
+  color: var(--text-dim);
+  font-size: 1.05rem;
+  margin-bottom: 2rem;
+  position: relative;
+}
+
+/* Footer */
+footer {
+  padding: 2rem;
+  text-align: center;
+  color: var(--text-dim);
+  font-size: 0.78rem;
+  border-top: 1px solid var(--border);
+}
+
+/* Responsive */
+@media (max-width: 640px) {
+  .hero h1 { font-size: 2.2rem; }
+  .hero-subtitle { font-size: 1rem; }
+  .stats-bar { gap: 2rem; }
+  .stat-value { font-size: 1.4rem; }
+  .feature-grid { grid-template-columns: 1fr; }
+  .cta-group { flex-direction: column; align-items: center; }
+}
+</style>
+</head>
+<body>
+
+<!-- Hero -->
+<section class="hero">
+  <div class="hero-grid"></div>
+  <div class="hero-content">
+    <div class="app-logo">&#9889;</div>
+    <div class="app-title">CloudBench</div>
+    <div class="app-tagline">Cloud Database Performance Test Suite</div>
+
+    <div style="height:2.5rem"></div>
+
+    <div class="badge">Cloud Database Performance Lab</div>
+
+    <h1>Create Your Own<br><span class="highlight">CAT Lab</span></h1>
+
+    <p class="hero-subtitle">
+      The comprehensive cloud database benchmark suite. Measure I/O throughput,
+      query optimizer efficiency, transaction integrity, and network characteristics
+      — all through standard SQL, no agents required.
+    </p>
+
+    <div class="hero-legacy">
+      <strong>Inspired by SQLCAT.</strong> Microsoft's SQL Server Customer Advisory Team ran
+      an internal performance lab where customers brought their own workloads to stress-test
+      against real hardware — measuring IOPS with SQLIO, validating storage integrity with
+      SQLIOSim, and benchmarking query optimizers with decision-support workloads. That lab was only accessible
+      to a select few. CloudBench gives you the foundational tools from that lab — I/O
+      profiling, integrity verification, analytical benchmarks, and network diagnostics —
+      rebuilt from scratch for the cloud era, where there is no disk to test and no lab
+      to visit. It won't replay your production workload, but it will tell you exactly
+      what your cloud database tier is capable of before you deploy one.
+    </div>
+
+    <div class="cta-group">
+      <a href="/login" class="btn-primary">Launch Your Lab &rarr;</a>
+      <a href="/static/sample.pdf" download class="btn-secondary">View Sample Report &darr;</a>
+      <a href="#how-it-works" class="btn-secondary">See How It Works</a>
+    </div>
+
+    <div class="stats-bar">
+      <div class="stat">
+        <div class="stat-value">11</div>
+        <div class="stat-label">Benchmark Tests</div>
+      </div>
+      <div class="stat">
+        <div class="stat-value">16</div>
+        <div class="stat-label">Analytical Queries</div>
+      </div>
+      <div class="stat">
+        <div class="stat-value">3</div>
+        <div class="stat-label">Database Engines</div>
+      </div>
+      <div class="stat">
+        <div class="stat-value">3</div>
+        <div class="stat-label">Cloud Providers</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Features -->
+<section class="features">
+  <div class="features-header">
+    <h2>Everything the CAT Lab Had. Nothing to Install.</h2>
+    <p>A full performance lab in your browser — no VMs, no agents, no disk access required.</p>
+  </div>
+
+  <div class="feature-grid">
+    <div class="feature-card">
+      <div class="feature-icon blue">&#9633;</div>
+      <h3>I/O Performance Testing</h3>
+      <p>Random reads, random writes, sequential scans, mixed workloads, and bulk inserts — with configurable block sizes from 1 KB to 64 KB. Thread scaling sweeps reveal saturation points and Amdahl's serial fraction.</p>
+    </div>
+
+    <div class="feature-card">
+      <div class="feature-icon green">&#10003;</div>
+      <h3>Data Integrity Verification</h3>
+      <p>SHA-256 checksums on every page written. Concurrent stress with balance-conservation audits. Isolation level anomaly detection. If your database silently corrupts data, CloudBench will find it.</p>
+    </div>
+
+    <div class="feature-card">
+      <div class="feature-icon cyan">&#9881;</div>
+      <h3>Analytical Query Benchmark</h3>
+      <p>16 original decision-support queries on a star-schema dataset. Cold and warm execution to measure plan cache effectiveness. Geometric mean and power score for cross-comparison.</p>
+    </div>
+
+    <div class="feature-card">
+      <div class="feature-icon purple">&#9729;</div>
+      <h3>Network Profiling</h3>
+      <p>DNS resolution, ping latency distribution, connection setup overhead, first-byte latency, and bidirectional bandwidth measurement. Know exactly where your performance floor is.</p>
+    </div>
+
+    <div class="feature-card">
+      <div class="feature-icon blue">&#8693;</div>
+      <h3>Thread Scaling Analysis</h3>
+      <p>Every I/O test runs at multiple concurrency levels. The scaling curve identifies optimal thread counts, saturation points, and the serial fraction — directly informing connection pool sizing.</p>
+    </div>
+
+    <div class="feature-card">
+      <div class="feature-icon green">&#9745;</div>
+      <h3>Export-Ready Reports</h3>
+      <p>Branded PDF reports for stakeholders. Flat CSV for spreadsheet comparison across servers. Structured JSON for programmatic analysis. Every filename includes host, preset, and timestamp.</p>
+    </div>
+  </div>
+</section>
+
+<!-- How it works -->
+<section class="how-it-works" id="how-it-works">
+  <h2>How It Works</h2>
+
+  <div class="step-list">
+    <div class="step-item">
+      <div class="step-num">1</div>
+      <div class="step-text">
+        <h3>Provision a Test Server</h3>
+        <p>Spin up a dedicated database on the cloud tier you want to evaluate. Any SKU, any provider. CloudBench needs a blank database and a SQL login — nothing else.</p>
+      </div>
+    </div>
+
+    <div class="step-item">
+      <div class="step-num">2</div>
+      <div class="step-text">
+        <h3>Connect</h3>
+        <p>Enter your host, port, credentials, and database engine. CloudBench validates the connection, detects the server version, and confirms connectivity before any tests run.</p>
+      </div>
+    </div>
+
+    <div class="step-item">
+      <div class="step-num">3</div>
+      <div class="step-text">
+        <h3>Choose Your Benchmark</h3>
+        <p>Pick a preset — Smoke (5–15 min), Standard (20–60 min), or Full Stress (60+ min) — or customize individual tests and block sizes. The preset is a starting point; toggle any test on or off.</p>
+      </div>
+    </div>
+
+    <div class="step-item">
+      <div class="step-num">4</div>
+      <div class="step-text">
+        <h3>Run</h3>
+        <p>CloudBench executes each test with live progress streaming. Watch operation counts tick up in real time. No agents are installed on your database — everything runs through standard SQL over the network.</p>
+      </div>
+    </div>
+
+    <div class="step-item">
+      <div class="step-num">5</div>
+      <div class="step-text">
+        <h3>Analyze and Export</h3>
+        <p>Interactive results with latency histograms, thread-scaling charts, and per-metric tooltips written for database engineers. Download a PDF report, CSV for spreadsheet comparison, or JSON for programmatic analysis.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Supported databases -->
+<section class="databases">
+  <h2>Test Any Cloud Database</h2>
+  <p>Connect to any publicly reachable SQL Server, PostgreSQL, or MySQL instance.</p>
+
+  <div class="db-grid">
+    <div class="db-card">
+      <h4>Microsoft Azure</h4>
+      <p>SQL Database<br>Managed Instance<br>Database for PostgreSQL<br>Database for MySQL</p>
+    </div>
+    <div class="db-card">
+      <h4>Amazon Web Services</h4>
+      <p>RDS for PostgreSQL<br>RDS for MySQL<br>RDS for SQL Server<br>Aurora (PostgreSQL, MySQL)</p>
+    </div>
+    <div class="db-card">
+      <h4>Google Cloud</h4>
+      <p>Cloud SQL (all engines)<br>AlloyDB</p>
+    </div>
+  </div>
+</section>
+
+<!-- Final CTA -->
+<section class="cta-section">
+  <h2>Ready to Build Your Lab?</h2>
+  <p>Provision a test database. Connect. Benchmark. Compare. Delete.</p>
+  <a href="/login" class="btn-primary" style="position:relative">Launch CloudBench &rarr;</a>
+</section>
+
+<footer>
+  CloudBench &mdash; Cloud Database Performance Benchmarking
+</footer>
+
+</body>
+</html>
