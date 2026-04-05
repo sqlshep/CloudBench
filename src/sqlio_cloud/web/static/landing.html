@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>CloudBench - Your Cloud Performance Lab</title>
+<title>Data Bench - Your Cloud Performance Lab</title>
 <style>
 :root {
   --bg: #0a0e17; --bg2: #111827; --bg3: #1a2332;
@@ -391,7 +391,7 @@ footer {
   <div class="hero-grid"></div>
   <div class="hero-content">
     <div class="app-logo">&#9889;</div>
-    <div class="app-title">CloudBench</div>
+    <div class="app-title">Data Bench</div>
     <div class="app-tagline">Cloud Database Performance Test Suite</div>
 
     <div style="height:2.5rem"></div>
@@ -408,11 +408,11 @@ footer {
 
     <div class="hero-legacy">
       <strong>Inspired by SQLCAT.</strong> and built by the people who ran it.
-      CloudBench is created by a former Microsoft SQL Server Customer Advisory Team (SQLCAT) lab manager, where the world's largest customers brought real workloads to be stress-tested against production-scale systems. Those labs measured I/O with SQLIO, validated storage integrity with SQLIOSim, and pushed query optimizers to their limits using decision-support workloads.
+      Data Bench is created by a former Microsoft SQL Server Customer Advisory Team (SQLCAT) lab manager, where the world's largest customers brought real workloads to be stress-tested against production-scale systems. Those labs measured I/O with SQLIO, validated storage integrity with SQLIOSim, and pushed query optimizers to their limits using decision-support workloads.
       
       That environment was powerful--but inaccessible, complex, and time-intensive.
       
-      CloudBench, built under Vates Domus AI, brings that capability to everyone. It reimagines the SQLCAT lab for the cloud era--eliminating weeks of setup and proprietary constraints, while delivering fast, repeatable, and realistic database performance validation.
+      Data Bench, built under Vates Domus AI, brings that capability to everyone. It reimagines the SQLCAT lab for the cloud era--eliminating weeks of setup and proprietary constraints, while delivering fast, repeatable, and realistic database performance validation.
       
       You're not just running tests--you're understanding exactly what your database tier can handle before it matters.
 
@@ -462,13 +462,13 @@ footer {
     <div class="feature-card">
       <div class="feature-icon green">&#10003;</div>
       <h3>Data Integrity Verification</h3>
-      <p>SHA-256 checksums on every page written. Concurrent stress with balance-conservation audits. Isolation level anomaly detection. If your database silently corrupts data, CloudBench will find it.</p>
+      <p>SHA-256 checksums on every page written. Concurrent stress with balance-conservation audits. Isolation level anomaly detection. If your database silently corrupts data, Data Bench will find it.</p>
     </div>
 
     <div class="feature-card">
       <div class="feature-icon cyan">&#9881;</div>
-      <h3>Analytical Query Benchmark</h3>
-      <p>16 original decision-support queries on a star-schema dataset. Cold and warm execution to measure plan cache effectiveness. Geometric mean and power score for cross-comparison.</p>
+      <h3>Decision-Support Benchmark</h3>
+      <p>16 analytical queries against a multi-table star schema -- aggregations, multi-join fan-outs, correlated subqueries, window functions, and set operations that stress the query optimizer, temp storage, and memory grants. Cold and warm runs measure plan cache effectiveness, with geometric mean and power score for cross-database comparison.</p>
     </div>
 
     <div class="feature-card">
@@ -491,6 +491,67 @@ footer {
   </div>
 </section>
 
+<!-- Decision-Support Deep Dive -->
+<section class="features" style="padding-top:2rem">
+  <div class="features-header">
+    <h2>Decision-Support Workload</h2>
+    <p>The analytical benchmark that stress-tests your query optimizer, not just your storage layer.</p>
+  </div>
+
+  <div style="max-width:800px;margin:0 auto 2.5rem;color:var(--text-dim);font-size:0.92rem;line-height:1.75">
+    <p style="margin-bottom:1rem">
+      In the original SQLCAT labs, decision-support testing was how we separated database tiers that
+      could handle real analytics from those that could not. Raw IOPS only tells half the story --
+      a database that reads pages quickly can still collapse under a 12-table join with hash aggregation
+      and spill-to-tempdb. Data Bench's decision-support benchmark reproduces that pressure using
+      16 purpose-built analytical queries against a realistic star schema.
+    </p>
+    <p>
+      The schema models a retail analytics warehouse: a central <strong style="color:var(--cyan)">fact table</strong> of line items
+      surrounded by <strong style="color:var(--cyan)">dimension tables</strong> for customers, suppliers, parts, dates, nations, and regions.
+      Each query exercises a different optimizer code path -- from simple filtered aggregations that should
+      run in milliseconds, to complex multi-join fan-outs with correlated subqueries, window functions,
+      EXISTS/NOT EXISTS predicates, and CASE-driven conditional aggregation that force the engine to choose
+      between nested loops, hash joins, merge joins, and sort-based grouping strategies.
+    </p>
+  </div>
+
+  <div class="feature-grid" style="grid-template-columns:repeat(auto-fit,minmax(250px,1fr))">
+    <div class="feature-card">
+      <div class="feature-icon cyan">&#9618;</div>
+      <h3>Star-Schema Dataset</h3>
+      <p>A fact table with foreign keys into customers, suppliers, parts, dates, nations, and regions. Automatically generated at connect time with realistic cardinalities and data distributions.</p>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon blue">&#9881;</div>
+      <h3>16 Analytical Queries</h3>
+      <p>Multi-table joins, grouped aggregations, correlated subqueries, window functions (RANK, ROW_NUMBER), EXISTS/NOT EXISTS filters, CASE expressions, and set operations (UNION, EXCEPT). Each query targets a distinct optimizer decision point.</p>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon green">&#9201;</div>
+      <h3>Cold vs. Warm Execution</h3>
+      <p>Every query runs twice -- once cold (no cached plan, no warm buffer pool) and once warm. The delta reveals how much your tier benefits from plan caching and data residency in memory.</p>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon purple">&#9879;</div>
+      <h3>Power Score &amp; Geometric Mean</h3>
+      <p>Individual query timings are rolled up into a geometric mean (so no single fast query masks a slow one) and a power score for apples-to-apples comparison across database tiers, SKUs, and cloud providers.</p>
+    </div>
+  </div>
+
+  <div style="max-width:800px;margin:2rem auto 0;border:1px solid var(--border);border-radius:var(--radius);padding:1.5rem;background:var(--bg2)">
+    <h3 style="color:var(--text-bright);font-size:1rem;margin-bottom:0.75rem">What the queries test</h3>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.4rem 2rem;font-size:0.82rem;color:var(--text-dim);line-height:1.6">
+      <div><strong style="color:var(--cyan)">Q1-Q3</strong> &mdash; Filtered aggregations, date-range scans, GROUP BY with HAVING</div>
+      <div><strong style="color:var(--cyan)">Q4-Q6</strong> &mdash; Multi-table inner joins, supplier/part lookups, SUM/AVG/COUNT</div>
+      <div><strong style="color:var(--cyan)">Q7-Q9</strong> &mdash; Correlated subqueries, EXISTS/NOT EXISTS, nation-to-region fan-outs</div>
+      <div><strong style="color:var(--cyan)">Q10-Q12</strong> &mdash; Window functions (RANK, ROW_NUMBER), TOP-N per group</div>
+      <div><strong style="color:var(--cyan)">Q13-Q14</strong> &mdash; CASE-driven conditional aggregation, derived tables, self-joins</div>
+      <div><strong style="color:var(--cyan)">Q15-Q16</strong> &mdash; Set operations, UNION/EXCEPT, cross-database comparison patterns</div>
+    </div>
+  </div>
+</section>
+
 <!-- How it works -->
 <section class="how-it-works" id="how-it-works">
   <h2>How It Works</h2>
@@ -500,7 +561,7 @@ footer {
       <div class="step-num">1</div>
       <div class="step-text">
         <h3>Provision a Test Server</h3>
-        <p>Spin up a dedicated database on the cloud tier you want to evaluate. Any SKU, any provider. CloudBench needs a blank database and a SQL login -- nothing else.</p>
+        <p>Spin up a dedicated database on the cloud tier you want to evaluate. Any SKU, any provider. Data Bench needs a blank database and a SQL login -- nothing else.</p>
       </div>
     </div>
 
@@ -508,7 +569,7 @@ footer {
       <div class="step-num">2</div>
       <div class="step-text">
         <h3>Connect</h3>
-        <p>Enter your host, port, credentials, and database engine. CloudBench validates the connection, detects the server version, and confirms connectivity before any tests run.</p>
+        <p>Enter your host, port, credentials, and database engine. Data Bench validates the connection, detects the server version, and confirms connectivity before any tests run.</p>
       </div>
     </div>
 
@@ -524,7 +585,7 @@ footer {
       <div class="step-num">4</div>
       <div class="step-text">
         <h3>Run</h3>
-        <p>CloudBench executes each test with live progress streaming. Watch operation counts tick up in real time. No agents are installed on your database -- everything runs through standard SQL over the network.</p>
+        <p>Data Bench executes each test with live progress streaming. Watch operation counts tick up in real time. No agents are installed on your database -- everything runs through standard SQL over the network.</p>
       </div>
     </div>
 
@@ -563,11 +624,11 @@ footer {
 <section class="cta-section">
   <h2>Ready to Build Your Lab?</h2>
   <p>Provision a test database. Connect. Benchmark. Compare. Delete.</p>
-  <a href="/login" class="btn-primary" style="position:relative">Launch CloudBench &rarr;</a>
+  <a href="/login" class="btn-primary" style="position:relative">Launch Data Bench &rarr;</a>
 </section>
 
 <footer>
-  CloudBench &mdash; Cloud Database Performance Benchmarking
+  Data Bench &mdash; Cloud Database Performance Benchmarking
 </footer>
 
 </body>

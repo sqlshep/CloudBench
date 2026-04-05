@@ -31,17 +31,31 @@ class SequentialScanTest:
         total_rows = 0
         total_bytes = 0
 
-        with self.db.engine.connect() as conn:
-            row = conn.execute(text(f"SELECT COUNT(*), COALESCE(SUM({length_expr}), 0) FROM {table}")).fetchone()
-            total_rows = int(row[0] or 0)
-            total_bytes = int(row[1] or 0)
+        for attempt in range(3):
+            try:
+                with self.db.engine.connect() as conn:
+                    row = conn.execute(text(f"SELECT COUNT(*), COALESCE(SUM({length_expr}), 0) FROM {table}")).fetchone()
+                    total_rows = int(row[0] or 0)
+                    total_bytes = int(row[1] or 0)
+                break
+            except Exception:
+                if attempt == 2:
+                    raise
+                time.sleep(2)
 
         for i in range(iterations):
-            with self.db.engine.connect() as conn:
-                t0 = time.perf_counter()
-                result = conn.execute(text(f"SELECT id, payload, checksum_val FROM {table}"))
-                _ = result.fetchall()
-                elapsed_ms = (time.perf_counter() - t0) * 1000
+            for attempt in range(3):
+                try:
+                    with self.db.engine.connect() as conn:
+                        t0 = time.perf_counter()
+                        result = conn.execute(text(f"SELECT id, payload, checksum_val FROM {table}"))
+                        _ = result.fetchall()
+                        elapsed_ms = (time.perf_counter() - t0) * 1000
+                    break
+                except Exception:
+                    if attempt == 2:
+                        raise
+                    time.sleep(2)
 
             latency.record(elapsed_ms, time.perf_counter())
             throughput.record_batch(total_rows, total_bytes)

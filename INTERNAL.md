@@ -1,4 +1,4 @@
-# CloudBench — Internal Documentation
+# Data Bench — Internal Documentation
 
 > This file is for developers and operators. For end-user documentation, see [README.md](README.md).
 
@@ -49,13 +49,13 @@ sqlio-cloud run \
 - **WebSocket support**: Cloud Run supports WebSocket connections for live progress streaming. The `--timeout 3600` flag ensures long-running benchmarks are not terminated prematurely.
 - **Concurrency**: Set `--max-instances` to control how many simultaneous benchmarks can run. Each benchmark uses a single container instance.
 - **Networking**: The Cloud Run service needs network access to your database. For private databases, use a VPC connector or Cloud Run's direct VPC egress.
-- **No database agents**: Nothing is installed on the target database. CloudBench operates entirely through SQL over the network.
+- **No database agents**: Nothing is installed on the target database. Data Bench operates entirely through SQL over the network.
 
 ---
 
 ## Deployment on Google Cloud Run
 
-CloudBench runs as a stateless container on Cloud Run. It makes outbound connections to your database — no inbound access to the database is required beyond standard SQL port connectivity.
+Data Bench runs as a stateless container on Cloud Run. It makes outbound connections to your database — no inbound access to the database is required beyond standard SQL port connectivity.
 
 ```bash
 # Build the container
@@ -128,7 +128,7 @@ src/sqlio_cloud/
 
 ## Building a Windows Executable
 
-CloudBench can be packaged as a standalone Windows `.exe` using PyInstaller. No Python installation is required on the target machine.
+Data Bench can be packaged as a standalone Windows `.exe` using PyInstaller. No Python installation is required on the target machine.
 
 ### Prerequisites
 
@@ -142,24 +142,24 @@ pip install -e ".[dev]"
 python build_exe.py
 ```
 
-This produces `dist/CloudBench/` containing `CloudBench.exe` and all dependencies.
+This produces `dist/Data Bench/` containing `Data Bench.exe` and all dependencies.
 
 ### Running the executable
 
 ```bash
 # Launch the web UI (default port 8080)
-CloudBench.exe web
+Data Bench.exe web
 
 # Custom port
-CloudBench.exe web -p 9000
+Data Bench.exe web -p 9000
 
 # Headless CLI mode
-CloudBench.exe run --host mydb.database.windows.net --port 1433 ...
+Data Bench.exe run --host mydb.database.windows.net --port 1433 ...
 ```
 
 ### Distribution
 
-Zip the entire `dist/CloudBench/` folder and distribute. The recipient extracts it and runs `CloudBench.exe web` — no installation or Python required.
+Zip the entire `dist/Data Bench/` folder and distribute. The recipient extracts it and runs `Data Bench.exe web` — no installation or Python required.
 
 ### Notes
 

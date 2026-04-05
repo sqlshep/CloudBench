@@ -1,4 +1,4 @@
-"""FastAPI web interface for CloudBench with WebSocket live progress."""
+"""FastAPI web interface for Data Bench with WebSocket live progress."""
 
 from __future__ import annotations
 
@@ -50,6 +50,9 @@ def _validate_mssql_direct(config: ConnectionConfig) -> ValidationResult:
         ping = (time.perf_counter() - t0) * 1000
         cursor.execute("SELECT @@VERSION")
         version = cursor.fetchone()[0] or ""
+
+        metadata = _gather_mssql_metadata(cursor)
+
         cursor.close()
         conn.close()
         return ValidationResult(
@@ -58,6 +61,7 @@ def _validate_mssql_direct(config: ConnectionConfig) -> ValidationResult:
             ping_ms=ping,
             max_connections=0,
             dialect_family="mssql",
+            server_metadata=metadata,
         )
     except Exception as e:
         err_str = str(e)
@@ -88,7 +92,7 @@ def _resolve_base_dir() -> Path:
 WEB_DIR = _resolve_base_dir()
 STATIC_DIR = WEB_DIR / "static"
 
-app = FastAPI(title="CloudBench", version="0.1.0")
+app = FastAPI(title="Data Bench", version="0.1.0")
 app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 
 def _check_password(password: str) -> bool:
@@ -209,6 +213,8 @@ async def presets():
     }
 
 
+from fastapi.responses import StreamingResponse
+
 @app.post("/api/validate")
 async def validate_connection(req: ConnectRequest, request: Request):
     if not _is_authenticated(request):
@@ -218,7 +224,7 @@ async def validate_connection(req: ConnectRequest, request: Request):
         if ":" in host:
             return {
                 "success": False,
-                "error": f"Hostname '{host}' contains colons — this looks like a Cloud SQL connection name, not a network address.",
+                "error": f"Hostname '{host}' contains colons -- this looks like a Cloud SQL connection name, not a network address.",
                 "advice": "Use the Public IP address (e.g. 34.26.137.105) or DNS hostname instead of the connection name. You can find the public IP on the Cloud SQL instance's Overview or Networking page in the GCP console.",
             }
         dialect = DB_TYPE_DIALECTS.get(req.db_type, "postgresql+psycopg")
@@ -231,41 +237,288 @@ async def validate_connection(req: ConnectRequest, request: Request):
             password=req.password,
         )
 
-        if "pymssql" in dialect:
-            vr = await asyncio.to_thread(
-                _validate_mssql_direct, config
-            )
-        else:
-            db = DatabaseConnection(config)
-            def _blocking_validate():
-                try:
-                    return db.validate()
-                finally:
-                    db.dispose()
-            vr = await asyncio.to_thread(_blocking_validate)
+        import queue
+        step_queue: queue.Queue = queue.Queue()
 
-        if vr.success:
-            resp = {
-                "success": True,
-                "server_version": vr.server_version[:120],
-                "ping_ms": round(vr.ping_ms, 1),
-                "max_connections": vr.max_connections,
-            }
-            if vr.database_created:
-                resp["database_created"] = True
-                resp["database_name"] = req.database
-            return resp
-        return {
-            "success": False,
-            "error": vr.error,
-            "advice": friendly_error(Exception(vr.error)),
-        }
+        def _stepped_validate():
+            import socket
+            try:
+                step_queue.put({"step": "dns", "msg": f"Resolving {config.host}..."})
+                t0 = time.perf_counter()
+                socket.getaddrinfo(config.host, config.port)
+                dns_ms = round((time.perf_counter() - t0) * 1000, 1)
+                step_queue.put({"step": "dns_ok", "msg": f"DNS resolved ({dns_ms} ms)"})
+            except Exception as e:
+                step_queue.put({"step": "error", "msg": f"DNS resolution failed: {e}"})
+                return
+
+            step_queue.put({"step": "connect", "msg": f"Connecting to {config.host}:{config.port}..."})
+            if "pymssql" in dialect:
+                vr = _validate_mssql_stepped(config, step_queue)
+            else:
+                vr = _validate_generic_stepped(config, step_queue)
+
+            if vr.success:
+                step_queue.put({"step": "done", "success": True,
+                                "server_version": vr.server_version[:120],
+                                "ping_ms": round(vr.ping_ms, 1),
+                                "max_connections": vr.max_connections,
+                                "database_created": vr.database_created,
+                                "database_name": config.database,
+                                "server_metadata": vr.server_metadata})
+            else:
+                step_queue.put({"step": "error", "msg": vr.error,
+                                "advice": friendly_error(Exception(vr.error))})
+
+        async def _event_stream():
+            thread = threading.Thread(target=_stepped_validate, daemon=True)
+            thread.start()
+            while True:
+                try:
+                    item = await asyncio.to_thread(step_queue.get, timeout=30)
+                    yield f"data: {json.dumps(item)}\n\n"
+                    if item.get("step") in ("done", "error"):
+                        break
+                except Exception:
+                    yield f"data: {json.dumps({'step': 'error', 'msg': 'Validation timed out'})}\n\n"
+                    break
+
+        return StreamingResponse(_event_stream(), media_type="text/event-stream")
     except Exception as e:
-        return {
-            "success": False,
-            "error": str(e),
-            "advice": friendly_error(e),
-        }
+        return {"success": False, "error": str(e), "advice": friendly_error(e)}
+
+
+def _gather_mssql_metadata(cursor) -> dict:
+    """Query Azure SQL / SQL Server instance metadata using a pymssql cursor."""
+    metadata = {}
+    try:
+        cursor.execute("SELECT CAST(SERVERPROPERTY('EngineEdition') AS INT)")
+        ee = cursor.fetchone()[0]
+        metadata["engine_edition"] = int(ee) if ee else None
+
+        cursor.execute("SELECT CAST(SERVERPROPERTY('ProductVersion') AS NVARCHAR(128))")
+        pv = cursor.fetchone()[0]
+        metadata["product_version"] = str(pv) if pv else ""
+
+        try:
+            cursor.execute("SELECT cpu_count, committed_target_kb FROM sys.dm_os_sys_info")
+            row = cursor.fetchone()
+            if row:
+                metadata["vcores"] = row[0]
+                metadata["memory_gb"] = round(row[1] / 1048576, 1) if row[1] else None
+        except Exception:
+            pass
+
+        try:
+            cursor.execute(
+                "SELECT CAST(DATABASEPROPERTYEX(DB_NAME(), 'Collation') AS NVARCHAR(128))")
+            metadata["collation"] = str(cursor.fetchone()[0] or "")
+        except Exception:
+            pass
+
+        try:
+            cursor.execute(
+                "SELECT compatibility_level FROM sys.databases WHERE name = DB_NAME()")
+            cl = cursor.fetchone()
+            if cl:
+                metadata["compatibility_level"] = cl[0]
+        except Exception:
+            pass
+
+        ee = metadata.get("engine_edition")
+        if ee == 5:
+            cursor.execute(
+                "SELECT CAST(DATABASEPROPERTYEX(DB_NAME(), 'Edition') AS NVARCHAR(128))")
+            metadata["edition"] = str(cursor.fetchone()[0] or "")
+            cursor.execute(
+                "SELECT CAST(DATABASEPROPERTYEX(DB_NAME(), 'ServiceObjective') AS NVARCHAR(128))")
+            metadata["service_objective"] = str(cursor.fetchone()[0] or "")
+
+            try:
+                cursor.execute(
+                    "SELECT CAST(DATABASEPROPERTYEX(DB_NAME(), 'MaxSizeInBytes') AS BIGINT)")
+                max_bytes = cursor.fetchone()[0]
+                if max_bytes and max_bytes > 0:
+                    metadata["max_size_gb"] = round(max_bytes / (1024 ** 3), 1)
+            except Exception:
+                pass
+
+            try:
+                cursor.execute(
+                    "SELECT SUM(size) * 8.0 / 1024 FROM sys.database_files")
+                sz = cursor.fetchone()[0]
+                if sz:
+                    metadata["current_size_mb"] = round(float(sz), 1)
+            except Exception:
+                pass
+
+            try:
+                cursor.execute(
+                    "SELECT edition, service_objective, elastic_pool_name "
+                    "FROM sys.database_service_objectives WHERE database_id = DB_ID()")
+                row = cursor.fetchone()
+                if row:
+                    metadata["elastic_pool"] = row[2]
+            except Exception:
+                metadata["elastic_pool"] = None
+
+        elif ee == 8:
+            metadata["edition"] = "Managed Instance"
+            try:
+                cursor.execute(
+                    "SELECT TOP 1 sku, hardware_generation, "
+                    "reserved_storage_mb, storage_space_used_mb, virtual_core_count "
+                    "FROM sys.server_resource_stats ORDER BY start_time DESC")
+                row = cursor.fetchone()
+                if row:
+                    metadata["service_objective"] = str(row[0] or "")
+                    metadata["hardware_generation"] = str(row[1] or "")
+                    if row[2]:
+                        metadata["max_size_gb"] = round(row[2] / 1024, 1)
+                    if row[3]:
+                        metadata["current_size_mb"] = round(float(row[3]), 1)
+                    if row[4]:
+                        metadata["vcores"] = row[4]
+            except Exception:
+                try:
+                    cursor.execute(
+                        "SELECT CAST(SERVERPROPERTY('Edition') AS NVARCHAR(128))")
+                    metadata["service_objective"] = str(cursor.fetchone()[0] or "")
+                except Exception:
+                    pass
+
+            try:
+                cursor.execute(
+                    "SELECT SUM(size) * 8.0 / 1024 FROM sys.database_files")
+                sz = cursor.fetchone()[0]
+                if sz:
+                    metadata["current_size_mb"] = round(float(sz), 1)
+            except Exception:
+                pass
+    except Exception:
+        pass
+    return metadata
+
+
+def _validate_mssql_stepped(config: ConnectionConfig, steps: "queue.Queue") -> ValidationResult:
+    import pymssql
+    try:
+        conn = pymssql.connect(
+            server=config.host, port=config.port,
+            user=config.username, password=config.password,
+            database=config.database, tds_version="7.3",
+            login_timeout=15, autocommit=True,
+        )
+        steps.put({"step": "auth_ok", "msg": "Authenticated"})
+
+        cursor = conn.cursor()
+        steps.put({"step": "ping", "msg": "Measuring latency..."})
+        t0 = time.perf_counter()
+        cursor.execute("SELECT 1")
+        cursor.fetchone()
+        ping = (time.perf_counter() - t0) * 1000
+        steps.put({"step": "ping_ok", "msg": f"Ping: {round(ping, 1)} ms"})
+
+        steps.put({"step": "version", "msg": "Reading server version..."})
+        cursor.execute("SELECT @@VERSION")
+        version = cursor.fetchone()[0] or ""
+        steps.put({"step": "version_ok", "msg": version[:80]})
+
+        steps.put({"step": "metadata", "msg": "Reading instance details..."})
+        metadata = _gather_mssql_metadata(cursor)
+        edition_label = metadata.get("edition", "")
+        sku = metadata.get("service_objective", "")
+        hw_gen = metadata.get("hardware_generation", "")
+        if edition_label or sku:
+            parts = [edition_label] if edition_label else []
+            if sku:
+                parts.append(f"({sku})")
+            if hw_gen:
+                parts.append(f"- {hw_gen}")
+            steps.put({"step": "metadata_ok", "msg": " ".join(parts)})
+            extras = []
+            if metadata.get("vcores"):
+                extras.append(f"{metadata['vcores']} vCores")
+            if metadata.get("memory_gb"):
+                extras.append(f"{metadata['memory_gb']} GB RAM")
+            if metadata.get("max_size_gb"):
+                extras.append(f"Max {metadata['max_size_gb']} GB")
+            if extras:
+                steps.put({"step": "metadata_ok", "msg": " | ".join(extras)})
+        elif metadata.get("engine_edition"):
+            steps.put({"step": "metadata_ok", "msg": "SQL Server (Azure)"})
+        else:
+            steps.put({"step": "metadata_ok", "msg": "SQL Server (on-premises)"})
+
+        cursor.close()
+        conn.close()
+        return ValidationResult(success=True, server_version=version,
+                                ping_ms=ping, max_connections=0, dialect_family="mssql",
+                                server_metadata=metadata)
+    except Exception as e:
+        err_str = str(e)
+        if "18456" in err_str or "40615" in err_str or "does not exist" in err_str.lower():
+            steps.put({"step": "db_missing", "msg": f"Database '{config.database}' not found -- creating..."})
+            created, create_err = DatabaseConnection(config)._auto_create_mssql(config.database)
+            if create_err is None:
+                steps.put({"step": "db_created", "msg": f"Database '{config.database}' created"})
+                vr = _validate_mssql_stepped(config, steps)
+                vr.database_created = True
+                return vr
+            return ValidationResult(success=False,
+                error=f"Database '{config.database}' does not exist and auto-create failed: {create_err}")
+        return ValidationResult(success=False, error=err_str)
+
+
+def _validate_generic_stepped(config: ConnectionConfig, steps: "queue.Queue") -> ValidationResult:
+    db = DatabaseConnection(config)
+    try:
+        steps.put({"step": "auth_ok", "msg": "Connected"})
+        steps.put({"step": "ping", "msg": "Measuring latency..."})
+        vr = db.validate()
+        if vr.success:
+            steps.put({"step": "ping_ok", "msg": f"Ping: {round(vr.ping_ms, 1)} ms"})
+            steps.put({"step": "version_ok", "msg": vr.server_version[:80]})
+
+            meta = vr.server_metadata
+            if meta:
+                steps.put({"step": "metadata", "msg": "Reading instance details..."})
+                edition = meta.get("edition") or meta.get("version_comment", "")
+                if edition:
+                    steps.put({"step": "metadata_ok", "msg": edition[:80]})
+
+                line1 = []
+                if meta.get("memory_gb"):
+                    line1.append(f"{meta['memory_gb']} GB buffer pool")
+                elif meta.get("shared_buffers"):
+                    line1.append(f"shared_buffers: {meta['shared_buffers']}")
+                if meta.get("max_connections"):
+                    line1.append(f"max_connections: {meta['max_connections']}")
+                if meta.get("current_size_mb"):
+                    sz = meta["current_size_mb"]
+                    line1.append(f"DB size: {sz/1024:.1f} GB" if sz > 1024 else f"DB size: {sz:.0f} MB")
+                if line1:
+                    steps.put({"step": "metadata_ok", "msg": " | ".join(line1)})
+
+                line2 = []
+                if meta.get("innodb_io_capacity"):
+                    cap = str(meta["innodb_io_capacity"])
+                    if meta.get("innodb_io_capacity_max"):
+                        cap += f" / {meta['innodb_io_capacity_max']} max"
+                    line2.append(f"IO capacity: {cap}")
+                if meta.get("innodb_read_io_threads"):
+                    rio = meta["innodb_read_io_threads"]
+                    wio = meta.get("innodb_write_io_threads", 0)
+                    line2.append(f"IO threads: {rio}R/{wio}W")
+                if meta.get("innodb_redo_log_mb"):
+                    line2.append(f"Redo log: {meta['innodb_redo_log_mb']} MB")
+                if meta.get("effective_cache_size"):
+                    line2.append(f"eff_cache: {meta['effective_cache_size']}")
+                if line2:
+                    steps.put({"step": "metadata_ok", "msg": " | ".join(line2)})
+        return vr
+    finally:
+        db.dispose()
 
 
 @app.get("/api/runs/{run_id}")
@@ -358,6 +611,7 @@ async def benchmark_ws(ws: WebSocket):
                     "dialect_family": db.dialect_family,
                     "server_version": vr.server_version[:120],
                     "ping_ms": vr.ping_ms,
+                    **vr.server_metadata,
                 }
                 result_holder["result"] = result.to_dict()
 

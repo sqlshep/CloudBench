@@ -1,4 +1,4 @@
-# CloudBench — Product Design Document
+# Data Bench — Product Design Document
 
 **Version:** 1.1
 **Date:** April 4, 2026
@@ -10,9 +10,9 @@
 
 ### 1.1 Product Summary
 
-CloudBench is a cloud database performance benchmarking service. It enables engineering teams to objectively measure and compare the performance characteristics of managed cloud databases — without requiring disk access, database agents, or privileged credentials.
+Data Bench is a cloud database performance benchmarking service. It enables engineering teams to objectively measure and compare the performance characteristics of managed cloud databases — without requiring disk access, database agents, or privileged credentials.
 
-The product is deployed as a stateless container on any major cloud platform (Azure Container Apps, Google Cloud Run, AWS App Runner, or self-hosted Docker) and accessed through a web browser. It is designed to run in every region on every cloud. Users point CloudBench at any reachable database endpoint, select a test profile, and receive a comprehensive performance report covering I/O throughput, query optimizer efficiency, transaction isolation correctness, data integrity verification, and network transport characteristics.
+The product is deployed as a stateless container on any major cloud platform (Azure Container Apps, Google Cloud Run, AWS App Runner, or self-hosted Docker) and accessed through a web browser. It is designed to run in every region on every cloud. Users point Data Bench at any reachable database endpoint, select a test profile, and receive a comprehensive performance report covering I/O throughput, query optimizer efficiency, transaction isolation correctness, data integrity verification, and network transport characteristics.
 
 ### 1.2 Problem Statement
 
@@ -36,11 +36,11 @@ Organizations evaluating cloud database services face several challenges:
 
 ### 1.4 Key Design Principles
 
-- **Zero installation on the target.** CloudBench operates entirely through standard SQL over the network. No agents, no drivers, no extensions, no elevated privileges.
+- **Zero installation on the target.** Data Bench operates entirely through standard SQL over the network. No agents, no drivers, no extensions, no elevated privileges.
 - **Effortless onboarding.** The web interface guides users through a 4-step wizard (Connect → Configure → Run → Analyze). Every metric has a tooltip explanation. Presets eliminate configuration decisions for common use cases.
 - **Expert-grade output.** Results are detailed enough for database engineers to make informed capacity planning decisions — full percentile distributions, Amdahl's serial fraction, thread scaling curves, cold/warm query comparison, isolation level anomaly detection.
 - **Comparison-first.** Every output format (PDF, CSV, JSON) is designed for comparing multiple servers. Filenames include host, preset, and timestamp. CSV is flat and pivot-friendly. PDF is stakeholder-ready.
-- **Stateless and disposable.** No persistent storage. All test data lives in the target database and is cleaned up after the run. Sessions and run state are held in-memory only. The CloudBench container can be destroyed and recreated at any time.
+- **Stateless and disposable.** No persistent storage. All test data lives in the target database and is cleaned up after the run. Sessions and run state are held in-memory only. The Data Bench container can be destroyed and recreated at any time.
 - **Cloud-agnostic.** Deploys identically on Azure, AWS, GCP, or bare Docker. No cloud-specific APIs, SDKs, or managed services are required at runtime. A single container image runs in every region on every cloud.
 
 ---
@@ -61,7 +61,7 @@ Organizations evaluating cloud database services face several challenges:
 └─────┼─────────────┼──────────────┼───────────────────────┘
       │             │              │
 ┌─────▼─────────────▼──────────────▼───────────────────────┐
-│     CloudBench Container (any cloud / any region)         │
+│     Data Bench Container (any cloud / any region)         │
 │                                                          │
 │  ┌─────────────────────────────────────────────────────┐ │
 │  │  FastAPI Backend + Session Auth                      │ │
@@ -299,9 +299,9 @@ No sysadmin, superuser, ALTER, or GRANT required.
 | --------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Web authentication          | Login required to access the benchmark UI. Credentials stored as SHA-256 hashes with salt — plaintext password never appears in code. Sessions use `httponly` cookies with 24-hour expiry. All API endpoints and WebSocket connections require a valid session.                                             |
 | Database credential storage | Target database credentials held in memory only for the benchmark duration. Never written to disk or logs. Discarded on session end.                                                                                                                                                                        |
-| Data isolation              | CloudBench only operates on its own tables (`sqlio_random_io`, `sqliosim_accounts`, `sqliosim_isolation_test`, and DSB schema tables: `zone`, `country`, `vendor`, `buyer`, `product`, `inventory`, `sale_order`, `order_detail`). User tables are never accessed. All test tables are dropped on teardown. |
+| Data isolation              | Data Bench only operates on its own tables (`sqlio_random_io`, `sqliosim_accounts`, `sqliosim_isolation_test`, and DSB schema tables: `zone`, `country`, `vendor`, `buyer`, `product`, `inventory`, `sale_order`, `order_detail`). User tables are never accessed. All test tables are dropped on teardown. |
 | Network transport           | Database connections use native wire protocol (TLS-encrypted by default on all major cloud providers). Web UI served over HTTPS via the cloud platform's ingress (Azure Container Apps, Cloud Run, etc.).                                                                                                   |
-| Agent installation          | None. CloudBench is a standard SQL client. Nothing is installed on the target server.                                                                                                                                                                                                                       |
+| Agent installation          | None. Data Bench is a standard SQL client. Nothing is installed on the target server.                                                                                                                                                                                                                       |
 | Production safety           | Users are instructed to provision a dedicated test server. Production databases should never be targeted.                                                                                                                                                                                                   |
 
 
@@ -311,7 +311,7 @@ No sysadmin, superuser, ALTER, or GRANT required.
 
 ### 8.1 Container Specification
 
-CloudBench deploys as a single Docker container on any container platform. The same image runs on every cloud in every region.
+Data Bench deploys as a single Docker container on any container platform. The same image runs on every cloud in every region.
 
 
 | Parameter | Value               | Rationale                                                                                |
@@ -337,13 +337,13 @@ CloudBench deploys as a single Docker container on any container platform. The s
 
 ### 8.3 Networking Requirements
 
-- **Outbound only.** CloudBench makes outbound TCP connections to the target database. No inbound ports are needed beyond the platform's HTTPS ingress.
+- **Outbound only.** Data Bench makes outbound TCP connections to the target database. No inbound ports are needed beyond the platform's HTTPS ingress.
 - **VPC / VNet egress.** For databases on private networks, use the platform's VNet/VPC integration (Azure VNet, GCP VPC connector, AWS VPC connector).
 - **IP allowlisting.** If the target database firewall requires specific source IPs, configure static outbound IP via the cloud platform (Azure NAT Gateway, GCP Cloud NAT, AWS NAT Gateway).
 
 ### 8.4 Multi-Region Strategy
 
-CloudBench is designed to be deployed in every region where a database is being evaluated. Deploying the benchmark container in the same region as the target database isolates database performance from cross-region network latency. To compare regions, deploy CloudBench in each region and run identical presets against identical database tiers — the Network Profiling test will capture the remaining intra-region network characteristics.
+Data Bench is designed to be deployed in every region where a database is being evaluated. Deploying the benchmark container in the same region as the target database isolates database performance from cross-region network latency. To compare regions, deploy Data Bench in each region and run identical presets against identical database tiers — the Network Profiling test will capture the remaining intra-region network characteristics.
 
 ---
 
@@ -430,7 +430,7 @@ Metric cards display color-coded ratings with context-sensitive thresholds:
 | ------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- | ----------------- |
 | **Authentication**              | Basic session-based login with hashed credentials                                                                                            | **Done** (v1.1)   |
 | **Multi-cloud deployment**      | Azure Container Apps deployment script; platform-agnostic Dockerfile                                                                         | **Done** (v1.1)   |
-| **Multi-region deployment**     | Automated deploy scripts for every major region on Azure, AWS, GCP — stamp out identical CloudBench instances co-located with test databases | High              |
+| **Multi-region deployment**     | Automated deploy scripts for every major region on Azure, AWS, GCP — stamp out identical Data Bench instances co-located with test databases | High              |
 | **OAuth / SSO**                 | Replace hardcoded credentials with Azure AD, Google, or GitHub OAuth for multi-tenant SaaS deployment                                        | High (for SaaS)   |
 | **Scheduled benchmarks**        | Cron-triggered runs for regression detection over time                                                                                       | Medium            |
 | **Historical comparison**       | Store results and show trend charts across runs (requires persistent storage)                                                                | Medium            |

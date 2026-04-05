@@ -1,32 +1,32 @@
-# CloudBench
+# Data Bench
 
 **Cloud database performance benchmarking as a service.**
 
-CloudBench is a comprehensive benchmark suite for managed cloud databases where you have no direct disk access. It measures I/O throughput, query optimizer efficiency, transaction isolation correctness, and network transport characteristics — all through standard SQL operations over the wire.
+Data Bench is a comprehensive benchmark suite for managed cloud databases where you have no direct disk access. It measures I/O throughput, query optimizer efficiency, transaction isolation correctness, and network transport characteristics — all through standard SQL operations over the wire.
 
 ---
 
 ## Before you start
 
-> **Do not run CloudBench against QA, staging, or production databases.**
+> **Do not run Data Bench against QA, staging, or production databases.**
 
-CloudBench generates synthetic load — concurrent reads, writes, bulk inserts, transaction storms, and full table scans. This will consume CPU, IOPS, memory, and transaction log throughput on the target database. Running it against a database that serves real traffic can degrade application performance, trigger throttling, or exhaust DTU/vCore budgets.
+Data Bench generates synthetic load — concurrent reads, writes, bulk inserts, transaction storms, and full table scans. This will consume CPU, IOPS, memory, and transaction log throughput on the target database. Running it against a database that serves real traffic can degrade application performance, trigger throttling, or exhaust DTU/vCore budgets.
 
 **What to do instead:**
 
 1. **Provision a dedicated test server.** Create a new database server (or managed instance) on the same SKU/tier you plan to evaluate. This gives you an isolated environment and ensures the benchmark results reflect the true performance of that tier without interference from other workloads.
-2. **Create an empty database (or let CloudBench do it).** CloudBench creates and manages its own test tables — you just need a blank database to connect to. Name it something like `benchmarks` or `cloudbench_test`. If the database doesn't exist, CloudBench will create it automatically when you test the connection, and enable snapshot isolation for SQL Server instances.
-3. **Make the database endpoint reachable over the internet.** CloudBench connects to your database remotely, so the server must accept inbound connections on its SQL port (1433 for SQL Server, 5432 for PostgreSQL, 3306 for MySQL). Ensure that public network access is enabled and that any firewall rules allow traffic from external IPs. Consult your cloud provider's documentation for how to configure network access on your specific service. Remember to lock it back down or delete the test server when you're done.
+2. **Create an empty database (or let Data Bench do it).** Data Bench creates and manages its own test tables — you just need a blank database to connect to. Name it something like `benchmarks` or `cloudbench_test`. If the database doesn't exist, Data Bench will create it automatically when you test the connection, and enable snapshot isolation for SQL Server instances.
+3. **Make the database endpoint reachable over the internet.** Data Bench connects to your database remotely, so the server must accept inbound connections on its SQL port (1433 for SQL Server, 5432 for PostgreSQL, 3306 for MySQL). Ensure that public network access is enabled and that any firewall rules allow traffic from external IPs. Consult your cloud provider's documentation for how to configure network access on your specific service. Remember to lock it back down or delete the test server when you're done.
 4. **Use a dedicated test credential.** Create a SQL user specifically for benchmarking with only the required permissions (see "What database permissions do I need?" below). Do not reuse production service accounts.
-5. **Tear down after testing.** Once you've exported your results, delete the test server to avoid ongoing charges. CloudBench cleans up its own tables, but the server/instance itself is your responsibility.
+5. **Tear down after testing.** Once you've exported your results, delete the test server to avoid ongoing charges. Data Bench cleans up its own tables, but the server/instance itself is your responsibility.
 
 ---
 
 ## How do I use it?
 
-1. **Connect** — Enter your database host, port, credentials, and dialect (SQL Server, PostgreSQL, or MySQL). The connection page displays the CloudBench host IP address for your firewall rules. CloudBench validates the connection, detects the server version, and auto-creates the database if it doesn't exist.
+1. **Connect** — Enter your database host, port, credentials, and dialect (SQL Server, PostgreSQL, or MySQL). The connection page displays the Data Bench host IP address for your firewall rules. Data Bench validates the connection, detects the server version, and auto-creates the database if it doesn't exist.
 2. **Configure** — Choose a preset (Smoke, Standard, or Full Stress) or customize individual tests, concurrency levels, and block sizes.
-3. **Run** — CloudBench executes the selected tests with live progress streaming. No agents or software are installed on your database server — everything runs through SQL over the network.
+3. **Run** — Data Bench executes the selected tests with live progress streaming. No agents or software are installed on your database server — everything runs through SQL over the network.
 4. **Analyze** — Interactive results with per-metric tooltips, latency distribution charts, and thread-scaling curves. Export as CSV or JSON to compare multiple servers.
 
 ---
@@ -43,10 +43,10 @@ CloudBench generates synthetic load — concurrent reads, writes, bulk inserts, 
 > **\*Azure SQL Managed Instance:** Managed Instance sits inside an Azure Virtual Network and has no public endpoint by default. To benchmark a MI:
 >
 > 1. **Enable the public endpoint** — Portal → MI → Security → Networking → Public endpoint → Enable. This can take 5–10 minutes to provision.
-> 2. **Add an NSG inbound rule** — Allow TCP on port **3342** from the CloudBench IP address (displayed on the connection page) or from `0.0.0.0/0` for a throwaway test instance.
+> 2. **Add an NSG inbound rule** — Allow TCP on port **3342** from the Data Bench IP address (displayed on the connection page) or from `0.0.0.0/0` for a throwaway test instance.
 > 3. **Use the public hostname** — It contains `.public.` in the name (e.g., `yourmi.public.abc123.database.windows.net`). The default hostname without `.public.` is the private VNet endpoint and will not work from outside the VNet.
-> 4. **Port is 3342** (not 1433) — CloudBench sets this automatically when you select "Azure SQL Managed Instance" from the dropdown.
-> 5. **Database auto-creation** — You do not need to create the database ahead of time. If the database name you enter does not exist, CloudBench will create it automatically and enable snapshot isolation.
+> 4. **Port is 3342** (not 1433) — Data Bench sets this automatically when you select "Azure SQL Managed Instance" from the dropdown.
+> 5. **Database auto-creation** — You do not need to create the database ahead of time. If the database name you enter does not exist, Data Bench will create it automatically and enable snapshot isolation.
 >
 > Since you should be provisioning a dedicated test instance anyway, enabling the public endpoint is safe — just delete the instance when testing is complete.
 
@@ -54,7 +54,7 @@ CloudBench generates synthetic load — concurrent reads, writes, bulk inserts, 
 
 ## What database permissions do I need?
 
-CloudBench connects as a regular SQL user. The account needs:
+Data Bench connects as a regular SQL user. The account needs:
 
 | Permission | Used For |
 |---|---|
@@ -77,7 +77,7 @@ Yes. Credentials are held in memory only for the duration of the benchmark run a
 
 ## Will it affect my existing data?
 
-No. CloudBench only creates and operates on its own test tables, which use a `bench_` or `dsb_` prefix. These tables are dropped before each run and cleaned up after. Your existing tables are never read, modified, or dropped. Nothing is installed on the database server.
+No. Data Bench only creates and operates on its own test tables, which use a `bench_` or `dsb_` prefix. These tables are dropped before each run and cleaned up after. Your existing tables are never read, modified, or dropped. Nothing is installed on the database server.
 
 ---
 
@@ -280,7 +280,7 @@ The I/O tests run each workload at increasing thread counts (e.g., 1 → 4 → 8
 
 ### What is Amdahl's Serial Fraction?
 
-From the scaling curve, CloudBench calculates **Amdahl's serial fraction** — the portion of the workload that cannot be parallelized, no matter how many concurrent connections are used.
+From the scaling curve, Data Bench calculates **Amdahl's serial fraction** — the portion of the workload that cannot be parallelized, no matter how many concurrent connections are used.
 
 The formula: `Speedup = 1 / (f + (1 - f) / N)`, where **f** is the serial fraction and **N** is the thread count.
 
@@ -312,7 +312,7 @@ The block size is also used as the page size for SHA-256 integrity verification.
 
 ## How do I export and compare results?
 
-CloudBench is built for teams benchmarking multiple servers. From the results page you have three export options:
+Data Bench is built for teams benchmarking multiple servers. From the results page you have three export options:
 
 - **PDF Report** — A professionally formatted, multi-page document ready to share with stakeholders. Includes a branded cover page with server details, an executive summary table, detailed per-test metrics with latency distributions, thread-scaling tables, embedded charts, and any errors encountered. Suitable for attaching to architecture review documents, vendor evaluations, or cloud migration assessments.
 - **CSV** — Flat `section, metric, value, unit` format. Every metric from every test is flattened into rows with server metadata (host, dialect, version, timestamp, preset). Import into Excel, Google Sheets, or a Jupyter notebook and pivot to compare servers side-by-side.
@@ -328,7 +328,7 @@ Filenames include the server host, preset, and timestamp for easy identification
 Execution time depends on several factors:
 
 - **Instance tier** — Burstable and Basic tiers have lower IOPS limits and higher per-operation latency than Premium or Business Critical tiers. A Smoke test that takes 5 minutes on a premium instance may take 15 minutes on a Basic tier.
-- **Network latency** — CloudBench connects to your database over the network. The physical distance between CloudBench and your database adds round-trip time to every operation. Higher latency means each individual operation takes longer, which compounds across thousands of operations.
+- **Network latency** — Data Bench connects to your database over the network. The physical distance between Data Bench and your database adds round-trip time to every operation. Higher latency means each individual operation takes longer, which compounds across thousands of operations.
 - **Database load** — If other workloads are running concurrently on the same database, they compete for resources and increase latency. This is why we recommend a dedicated test server (see "Before you start").
 - **Scale factor** — Higher analytical scale factors generate more data and run longer queries.
 

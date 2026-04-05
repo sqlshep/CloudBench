@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    Deploy CloudBench to Azure Container Apps (West US 2).
+    Deploy Data Bench to Azure Container Apps (West US 2).
 
 .DESCRIPTION
     One-shot script that creates all Azure resources and deploys the app.
@@ -27,7 +27,7 @@ $env:Path = [System.Environment]::GetEnvironmentVariable("Path", "Machine") + ";
 
 Write-Host ""
 Write-Host "========================================" -ForegroundColor Cyan
-Write-Host "  CloudBench — Azure Container Apps     " -ForegroundColor Cyan
+Write-Host "  Data Bench — Azure Container Apps      " -ForegroundColor Cyan
 Write-Host "  Region: $Location                     " -ForegroundColor Cyan
 Write-Host "========================================" -ForegroundColor Cyan
 Write-Host ""

@@ -95,13 +95,35 @@ class ConsoleReporter:
 
     def print_header(self, preset: str, db_info: dict):
         self.console.print()
-        self.console.print(Panel.fit(
-            f"[bold cyan]CloudBench — Database Performance Suite[/]\n"
-            f"  Database: {db_info.get('dialect_family', '?')} @ {db_info.get('host', '?')}\n"
-            f"  Version:  {db_info.get('server_version', '?')[:60]}\n"
-            f"  Profile:  {preset or 'custom'}",
-            border_style="cyan",
-        ))
+        lines = [
+            f"[bold cyan]Data Bench — Database Performance Suite[/]",
+            f"  Database: {db_info.get('dialect_family', '?')} @ {db_info.get('host', '?')}",
+        ]
+        edition = db_info.get("edition")
+        sku = db_info.get("service_objective")
+        if edition:
+            tier_line = f"  Tier:     {edition}"
+            if sku:
+                tier_line += f" ({sku})"
+            lines.append(tier_line)
+        pool = db_info.get("elastic_pool")
+        if pool:
+            lines.append(f"  Pool:     {pool}")
+        vcores = db_info.get("vcores")
+        mem = db_info.get("memory_gb")
+        if vcores or mem:
+            parts = []
+            if vcores:
+                parts.append(f"{vcores} vCores")
+            if mem:
+                parts.append(f"{mem} GB RAM")
+            lines.append(f"  Hardware: {' / '.join(parts)}")
+        max_sz = db_info.get("max_size_gb")
+        if max_sz:
+            lines.append(f"  Max Size: {max_sz} GB")
+        lines.append(f"  Version:  {db_info.get('server_version', '?')[:60]}")
+        lines.append(f"  Profile:  {preset or 'custom'}")
+        self.console.print(Panel.fit("\n".join(lines), border_style="cyan"))
 
     def print_sqlio(self, result: SQLIOResult):
         t = result.throughput.to_dict()
@@ -342,7 +364,7 @@ class HTMLReporter:
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>CloudBench Report</title>
+<title>Data Bench Report</title>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
 <style>
   * {{ box-sizing: border-box; margin: 0; padding: 0; }}
@@ -374,9 +396,13 @@ class HTMLReporter:
 <body>
 
 <div class="header">
-  <h1>CloudBench Report</h1>
+  <h1>Data Bench Report</h1>
   <p>Generated: {time.strftime('%Y-%m-%d %H:%M:%S UTC', time.gmtime(result.timestamp))}</p>
   <p>Database: {result.database_info.get('dialect_family', '?')} @ {result.database_info.get('host', '?')}</p>
+  {"<p>Tier: " + result.database_info["edition"] + (" (" + result.database_info["service_objective"] + ")" if result.database_info.get("service_objective") else "") + "</p>" if result.database_info.get("edition") else ""}
+  {"<p>Elastic Pool: " + str(result.database_info["elastic_pool"]) + "</p>" if result.database_info.get("elastic_pool") else ""}
+  {"<p>Resources: " + str(result.database_info.get("vcores", "")) + " vCores / " + str(result.database_info.get("memory_gb", "")) + " GB RAM</p>" if result.database_info.get("vcores") else ""}
+  {"<p>Max Size: " + str(result.database_info["max_size_gb"]) + " GB</p>" if result.database_info.get("max_size_gb") else ""}
   <p>Profile: {result.preset or 'custom'}</p>
 </div>
 

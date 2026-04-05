@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>CloudBench</title>
+<title>Data Bench</title>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/3.0.3/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/5.0.2/jspdf.plugin.autotable.min.js"></script>
@@ -233,7 +233,7 @@ body {
 <div class="container">
   <div class="header">
     <div class="logo">&#9889;</div>
-    <h1>CloudBench</h1>
+    <h1>Data Bench</h1>
     <p>Cloud Database Performance Test Suite</p>
   </div>
 
@@ -264,7 +264,7 @@ body {
         </div>
         <div class="form-group">
           <label>Port</label>
-          <input type="number" id="port" value="5432">
+          <input type="number" id="port" value="1433">
         </div>
       </div>
       <div class="form-group">
@@ -283,7 +283,7 @@ body {
       </div>
 
       <div id="host-ip-bar" style="background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:0.65rem 1rem;margin-bottom:1rem;font-size:0.82rem;display:flex;align-items:center;gap:0.6rem">
-        <span style="color:var(--text-dim)">CloudBench IP address:</span>
+        <span style="color:var(--text-dim)">Data Bench IP address:</span>
         <span id="host-ip" style="color:var(--blue);font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-weight:600">detecting...</span>
         <span style="color:var(--text-dim);font-size:0.75rem">-- add this to your database firewall rules</span>
       </div>
@@ -292,10 +292,21 @@ body {
         <div style="font-weight:600;color:var(--blue);margin-bottom:0.4rem">Google Cloud SQL -- Setup Required</div>
         <ol style="margin:0;padding-left:1.2rem;color:var(--text-dim)">
           <li>Enable <strong style="color:var(--text)">Public IP</strong> on your instance (GCP Console → SQL → Instance → Connections → Networking → Public IP → Enable).</li>
-          <li>Add the CloudBench IP to <strong style="color:var(--text)">Authorized networks</strong> (GCP Console → SQL → Instance → Connections → Networking → Authorized networks → Add a network). Enter the CloudBench IP shown above, or <code>0.0.0.0/0</code> for a throwaway test instance.</li>
+          <li>Add the Data Bench IP to <strong style="color:var(--text)">Authorized networks</strong> (GCP Console → SQL → Instance → Connections → Networking → Authorized networks → Add a network). Enter the Data Bench IP shown above, or <code>0.0.0.0/0</code> for a throwaway test instance.</li>
           <li>Use the <strong style="color:var(--text)">Public IP address</strong> as the hostname (e.g., <code style="color:var(--cyan)">34.26.137.105</code>). Do <strong style="color:var(--text)">not</strong> use the connection name (<code>project:region:instance</code>) -- that is for the Cloud SQL Auth Proxy only.</li>
-          <li>If <strong style="color:var(--text)">SSL is required</strong> on your instance, CloudBench handles it automatically -- no client certificate is needed.</li>
-          <li>You do <strong style="color:var(--text)">not</strong> need to create the database ahead of time. If the database name you enter does not exist, CloudBench will create it automatically when you test the connection.</li>
+          <li>If <strong style="color:var(--text)">SSL is required</strong> on your instance, Data Bench handles it automatically -- no client certificate is needed.</li>
+          <li>You do <strong style="color:var(--text)">not</strong> need to create the database ahead of time. If the database name you enter does not exist, Data Bench will create it automatically when you test the connection.</li>
+        </ol>
+      </div>
+
+      <div id="azuresql-guidance" class="hidden" style="background:rgba(88,166,255,0.08);border:1px solid rgba(88,166,255,0.25);border-radius:8px;padding:1rem 1.2rem;margin-bottom:1rem;font-size:0.82rem;line-height:1.6;color:var(--text)">
+        <div style="font-weight:600;color:var(--blue);margin-bottom:0.4rem">Azure SQL Database / Hyperscale -- Firewall Setup</div>
+        <ol style="margin:0;padding-left:1.2rem;color:var(--text-dim)">
+          <li>In the Azure Portal, go to your <strong style="color:var(--text)">SQL Server</strong> (the logical server, not the database) → <strong style="color:var(--text)">Security</strong> → <strong style="color:var(--text)">Networking</strong>.</li>
+          <li>Under <strong style="color:var(--text)">Firewall rules</strong>, click <strong style="color:var(--text)">+ Add a firewall rule</strong> and enter the Data Bench IP shown above (or <code>0.0.0.0</code> - <code>255.255.255.255</code> for a throwaway test server).</li>
+          <li>Optionally, check <strong style="color:var(--text)">Allow Azure services and resources to access this server</strong> if Data Bench is running in Azure (e.g., Container Apps).</li>
+          <li>Click <strong style="color:var(--text)">Save</strong> -- firewall changes can take 1-2 minutes to propagate.</li>
+          <li>You do <strong style="color:var(--text)">not</strong> need to create the database ahead of time. If the database name you enter does not exist, Data Bench will create it automatically when you test the connection.</li>
         </ol>
       </div>
 
@@ -303,12 +314,12 @@ body {
         <div style="font-weight:600;color:var(--blue);margin-bottom:0.4rem">Azure SQL Managed Instance -- Setup Required</div>
         <ol style="margin:0;padding-left:1.2rem;color:var(--text-dim)">
           <li>Enable the <strong style="color:var(--text)">public endpoint</strong> on your MI (Portal → MI → Security → Networking → Public endpoint → Enable). This can take 5-10 minutes to provision.</li>
-          <li>Add an <strong style="color:var(--text)">NSG inbound rule</strong> allowing TCP on port <strong style="color:var(--text)">3342</strong> from the CloudBench IP shown above (or from <code>0.0.0.0/0</code> if this is a throwaway test instance).</li>
+          <li>Add an <strong style="color:var(--text)">NSG inbound rule</strong> allowing TCP on port <strong style="color:var(--text)">3342</strong> from the Data Bench IP shown above (or from <code>0.0.0.0/0</code> if this is a throwaway test instance).</li>
           <li>Use the <strong style="color:var(--text)">public hostname</strong> -- it has <code>.public.</code> in it:<br>
             <code style="color:var(--cyan)">yourmi<strong>.public.</strong>abc123.database.windows.net</code><br>
             The default hostname from the portal (without <code>.public.</code>) is the private VNet endpoint and will not work.</li>
           <li>Port is <strong style="color:var(--text)">3342</strong> (not 1433). This has been set automatically.</li>
-          <li>You do <strong style="color:var(--text)">not</strong> need to create the database ahead of time. If the database name you enter does not exist, CloudBench will create it automatically when you test the connection.</li>
+          <li>You do <strong style="color:var(--text)">not</strong> need to create the database ahead of time. If the database name you enter does not exist, Data Bench will create it automatically when you test the connection.</li>
         </ol>
       </div>
 
@@ -318,6 +329,8 @@ body {
           <div id="conn-msg">Testing connection...</div>
           <div class="detail" id="conn-detail"></div>
         </div>
+      </div>
+      <div id="conn-steps" class="hidden" style="margin:0.75rem 0;padding:0.6rem 1rem;background:var(--card-bg);border:1px solid var(--border);border-radius:8px;font-size:0.82rem;line-height:1.8">
       </div>
       <div id="conn-error" class="error-box hidden">
         <h4>Connection Failed</h4>
@@ -457,6 +470,7 @@ let selectedPreset = 'standard';
 let presets = {};
 let dbTypes = [];
 let connValid = false;
+let connServerMeta = {};
 let ws = null;
 let benchmarkResults = null;
 
@@ -480,6 +494,8 @@ async function init() {
     const hostHint = document.getElementById('host-hint');
     const miPanel = document.getElementById('mi-guidance');
     const gcpPanel = document.getElementById('gcp-guidance');
+    const azureSqlPanel = document.getElementById('azuresql-guidance');
+    const isAzureSqlDb = v === 'Azure SQL Database' || v === 'Azure SQL Hyperscale';
 
     if (v.startsWith('Google Cloud SQL')) {
       hostInput.placeholder = '34.26.137.105';
@@ -489,7 +505,7 @@ async function init() {
       hostHint.textContent = 'Use the public hostname (with .public. in it) -- see the setup guide below';
     } else if (v.startsWith('Azure')) {
       hostInput.placeholder = 'myserver.database.windows.net';
-      hostHint.textContent = '';
+      hostHint.textContent = 'Add the Data Bench IP to your server firewall -- see the setup guide below';
     } else if (v.startsWith('Amazon')) {
       hostInput.placeholder = 'mydb.abc123.us-east-1.rds.amazonaws.com';
       hostHint.textContent = '';
@@ -500,6 +516,7 @@ async function init() {
 
     miPanel.classList.toggle('hidden', v !== 'Azure SQL Managed Instance');
     gcpPanel.classList.toggle('hidden', !v.startsWith('Google Cloud SQL'));
+    azureSqlPanel.classList.toggle('hidden', !isAzureSqlDb);
   }
 
   sel.addEventListener('change', () => {
@@ -573,6 +590,19 @@ document.getElementById('btn-test-conn').addEventListener('click', async () => {
   document.getElementById('btn-next-1').disabled = true;
   connValid = false;
 
+  const stepsEl = document.getElementById('conn-steps');
+  stepsEl.innerHTML = '';
+  stepsEl.classList.remove('hidden');
+
+  function addStep(icon, text, color) {
+    const s = document.createElement('div');
+    s.style.cssText = `color:${color||'var(--text-dim)'};`;
+    s.innerHTML = `${icon} ${text}`;
+    stepsEl.appendChild(s);
+    stepsEl.scrollTop = stepsEl.scrollHeight;
+    return s;
+  }
+
   try {
     const res = await fetch('/api/validate', {
       method: 'POST',
@@ -586,34 +616,100 @@ document.getElementById('btn-test-conn').addEventListener('click', async () => {
         password: document.getElementById('password').value,
       }),
     });
-    const data = await res.json();
 
-    if (data.success) {
-      dot.className = 'conn-dot ok';
-      msg.textContent = data.database_created
-        ? `Connected -- database "${data.database_name}" was created automatically`
-        : 'Connected!';
-      detail.textContent = `Server: ${data.server_version?.substring(0,80)} | Ping: ${data.ping_ms} ms | Max connections: ${data.max_connections}`;
-      if (data.database_created) {
-        const dbNote = document.createElement('div');
-        dbNote.setAttribute('data-db-created', '1');
-        dbNote.style.cssText = 'margin-top:0.5rem;padding:0.5rem 0.75rem;background:rgba(63,185,80,0.1);border:1px solid rgba(63,185,80,0.3);border-radius:6px;font-size:0.8rem;color:var(--green)';
-        dbNote.innerHTML = `&#9889; Database <strong>${data.database_name}</strong> did not exist and was created for you. It will be used for all benchmark tests.`;
-        statusEl.appendChild(dbNote);
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+
+    while (true) {
+      const {done, value} = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, {stream: true});
+      const lines = buffer.split('\n');
+      buffer = lines.pop();
+      for (const line of lines) {
+        if (!line.startsWith('data: ')) continue;
+        const data = JSON.parse(line.slice(6));
+        switch (data.step) {
+          case 'dns':
+            addStep('&#9203;', data.msg, 'var(--yellow)');
+            msg.textContent = 'Resolving DNS...';
+            break;
+          case 'dns_ok':
+            addStep('&#10003;', data.msg, 'var(--green)');
+            break;
+          case 'connect':
+            addStep('&#9203;', data.msg, 'var(--yellow)');
+            msg.textContent = 'Connecting...';
+            break;
+          case 'auth_ok':
+            addStep('&#10003;', data.msg, 'var(--green)');
+            msg.textContent = 'Authenticated';
+            break;
+          case 'ping':
+            addStep('&#9203;', data.msg, 'var(--yellow)');
+            break;
+          case 'ping_ok':
+            addStep('&#10003;', data.msg, 'var(--green)');
+            break;
+          case 'version':
+          case 'version_ok':
+            addStep('&#10003;', data.msg, 'var(--green)');
+            break;
+          case 'metadata':
+            addStep('&#9203;', data.msg, 'var(--yellow)');
+            msg.textContent = 'Reading instance details...';
+            break;
+          case 'metadata_ok':
+            addStep('&#10003;', data.msg, 'var(--green)');
+            break;
+          case 'db_missing':
+            addStep('&#9888;', data.msg, 'var(--yellow)');
+            msg.textContent = 'Creating database...';
+            break;
+          case 'db_created':
+            addStep('&#10003;', data.msg, 'var(--green)');
+            break;
+          case 'done':
+            dot.className = 'conn-dot ok';
+            msg.textContent = data.database_created
+              ? `Connected -- database "${data.database_name}" was created automatically`
+              : 'Connected!';
+            connServerMeta = data.server_metadata || {};
+            const meta = connServerMeta;
+            let detailParts = [];
+            if (meta.edition && meta.service_objective)
+              detailParts.push(`${meta.edition} (${meta.service_objective})`);
+            else if (data.server_version)
+              detailParts.push(data.server_version.substring(0, 60));
+            detailParts.push(`Ping: ${data.ping_ms} ms`);
+            if (data.max_connections) detailParts.push(`Max connections: ${data.max_connections}`);
+            if (meta.elastic_pool) detailParts.push(`Pool: ${meta.elastic_pool}`);
+            detail.textContent = detailParts.join(' | ');
+            if (data.database_created) {
+              const dbNote = document.createElement('div');
+              dbNote.setAttribute('data-db-created', '1');
+              dbNote.style.cssText = 'margin-top:0.5rem;padding:0.5rem 0.75rem;background:rgba(63,185,80,0.1);border:1px solid rgba(63,185,80,0.3);border-radius:6px;font-size:0.8rem;color:var(--green)';
+              dbNote.innerHTML = `&#9889; Database <strong>${data.database_name}</strong> did not exist and was created for you.`;
+              statusEl.appendChild(dbNote);
+            }
+            document.getElementById('btn-next-1').disabled = false;
+            connValid = true;
+            break;
+          case 'error':
+            dot.className = 'conn-dot fail';
+            msg.textContent = 'Connection failed';
+            addStep('&#10007;', data.msg, 'var(--red)');
+            errBox.classList.remove('hidden');
+            document.getElementById('conn-error-text').textContent = (data.msg||'') + '\n\n' + (data.advice||'');
+            break;
+        }
       }
-      document.getElementById('btn-next-1').disabled = false;
-      connValid = true;
-    } else {
-      dot.className = 'conn-dot fail';
-      msg.textContent = 'Connection failed';
-      detail.textContent = '';
-      errBox.classList.remove('hidden');
-      document.getElementById('conn-error-text').textContent = (data.error||'') + '\n\n' + (data.advice||'');
     }
   } catch(e) {
     dot.className = 'conn-dot fail';
     msg.textContent = 'Could not reach the server';
-    detail.textContent = 'Is the CloudBench web server running?';
+    detail.textContent = 'Is the Data Bench web server running?';
   }
 });
 
@@ -867,7 +963,27 @@ function renderErrors(data) {
 
 function renderOverview(data) {
   const el = document.getElementById('tab-overview');
-  let html = '<div class="result-grid">';
+  let html = '';
+  const db = data.database_info || {};
+  if (db.edition || db.service_objective || db.elastic_pool || db.product_version || db.vcores) {
+    html += '<div class="card" style="margin-bottom:1rem;padding:0.75rem 1rem;border-left:3px solid var(--accent)">';
+    html += '<div style="display:flex;flex-wrap:wrap;gap:1.5rem;font-size:0.85rem">';
+    if (db.host) html += `<div><span style="color:var(--text-dim)">Host</span><br><strong>${db.host}</strong></div>`;
+    if (db.edition) {
+      let tier = db.edition;
+      if (db.service_objective) tier += ` (${db.service_objective})`;
+      html += `<div><span style="color:var(--text-dim)">Tier</span><br><strong>${tier}</strong></div>`;
+    }
+    if (db.elastic_pool) html += `<div><span style="color:var(--text-dim)">Elastic Pool</span><br><strong>${db.elastic_pool}</strong></div>`;
+    if (db.vcores) html += `<div><span style="color:var(--text-dim)">vCores</span><br><strong>${db.vcores}</strong></div>`;
+    if (db.memory_gb) html += `<div><span style="color:var(--text-dim)">Memory</span><br><strong>${db.memory_gb} GB</strong></div>`;
+    if (db.max_size_gb) html += `<div><span style="color:var(--text-dim)">Max Size</span><br><strong>${db.max_size_gb} GB</strong></div>`;
+    if (db.current_size_mb) html += `<div><span style="color:var(--text-dim)">Used</span><br><strong>${db.current_size_mb > 1024 ? (db.current_size_mb/1024).toFixed(1)+' GB' : db.current_size_mb+' MB'}</strong></div>`;
+    if (db.product_version) html += `<div><span style="color:var(--text-dim)">Engine</span><br><strong>${db.product_version}</strong></div>`;
+    if (db.ping_ms) html += `<div><span style="color:var(--text-dim)">Baseline Ping</span><br><strong>${db.ping_ms.toFixed(1)} ms</strong></div>`;
+    html += '</div></div>';
+  }
+  html += '<div class="result-grid">';
 
   const sqlio = data.sqlio || [];
   const sim = data.sqliosim || [];
@@ -1169,6 +1285,26 @@ function exportCSV() {
   rows.push(['meta','host', dbInfo.host||'', '']);
   rows.push(['meta','server_version', dbInfo.server_version||'', '']);
   rows.push(['meta','baseline_ping', dbInfo.ping_ms||'', 'ms']);
+  if (dbInfo.edition) rows.push(['meta','edition', dbInfo.edition, '']);
+  if (dbInfo.service_objective) rows.push(['meta','service_objective', dbInfo.service_objective, '']);
+  if (dbInfo.vcores) rows.push(['meta','vcores', dbInfo.vcores, '']);
+  if (dbInfo.memory_gb) rows.push(['meta','memory_gb', dbInfo.memory_gb, 'GB']);
+  if (dbInfo.max_size_gb) rows.push(['meta','max_size_gb', dbInfo.max_size_gb, 'GB']);
+  if (dbInfo.current_size_mb) rows.push(['meta','current_size_mb', dbInfo.current_size_mb, 'MB']);
+  if (dbInfo.elastic_pool) rows.push(['meta','elastic_pool', dbInfo.elastic_pool, '']);
+  if (dbInfo.product_version) rows.push(['meta','product_version', dbInfo.product_version, '']);
+  if (dbInfo.collation) rows.push(['meta','collation', dbInfo.collation, '']);
+  if (dbInfo.compatibility_level) rows.push(['meta','compatibility_level', dbInfo.compatibility_level, '']);
+  if (dbInfo.innodb_io_capacity) rows.push(['meta','innodb_io_capacity', dbInfo.innodb_io_capacity, '']);
+  if (dbInfo.innodb_io_capacity_max) rows.push(['meta','innodb_io_capacity_max', dbInfo.innodb_io_capacity_max, '']);
+  if (dbInfo.innodb_read_io_threads) rows.push(['meta','innodb_read_io_threads', dbInfo.innodb_read_io_threads, '']);
+  if (dbInfo.innodb_write_io_threads) rows.push(['meta','innodb_write_io_threads', dbInfo.innodb_write_io_threads, '']);
+  if (dbInfo.innodb_buffer_pool_instances) rows.push(['meta','innodb_buffer_pool_instances', dbInfo.innodb_buffer_pool_instances, '']);
+  if (dbInfo.innodb_redo_log_mb) rows.push(['meta','innodb_redo_log_mb', dbInfo.innodb_redo_log_mb, 'MB']);
+  if (dbInfo.innodb_flush_log_at_trx_commit) rows.push(['meta','innodb_flush_log_at_trx_commit', dbInfo.innodb_flush_log_at_trx_commit, '']);
+  if (dbInfo.shared_buffers) rows.push(['meta','shared_buffers', dbInfo.shared_buffers, '']);
+  if (dbInfo.work_mem) rows.push(['meta','work_mem', dbInfo.work_mem, '']);
+  if (dbInfo.effective_cache_size) rows.push(['meta','effective_cache_size', dbInfo.effective_cache_size, '']);
 
   (d.sqlio || []).forEach(s => {
     const t = s.throughput, l = s.latency, sec = 'io:'+s.test_name;
@@ -1319,7 +1455,7 @@ function exportPDF() {
     doc.setFontSize(7.5);
     doc.setFont(undefined, 'normal');
     doc.setTextColor(...DIM);
-    doc.text('CloudBench  ·  Database Performance Report', margin, H - 9);
+    doc.text('Data Bench  ·  Database Performance Report', margin, H - 9);
     doc.text(`${doc.internal.getCurrentPageInfo().pageNumber}`, W - margin, H - 9, { align: 'right' });
   }
 
@@ -1484,81 +1620,124 @@ function exportPDF() {
   }
 
   /* ── Cover page ── */
-  doc.setFillColor(...BRAND);
+  doc.setFillColor(...WHITE);
   doc.rect(0, 0, W, H, 'F');
 
-  doc.setFillColor(24, 58, 150);
-  doc.rect(0, 0, W, 95, 'F');
+  doc.setDrawColor(...BRAND);
+  doc.setLineWidth(1.2);
+  doc.line(margin, 30, margin + 50, 30);
 
   doc.setFontSize(42);
   doc.setFont(undefined, 'bold');
-  doc.setTextColor(...WHITE);
-  doc.text('CloudBench', W / 2, 48, { align: 'center' });
+  doc.setTextColor(...DARK);
+  doc.text('Data Bench', margin, 50);
 
   doc.setFontSize(13);
   doc.setFont(undefined, 'normal');
-  doc.setTextColor(200, 215, 255);
-  doc.text('Database Performance Report', W / 2, 62, { align: 'center' });
+  doc.setTextColor(...DIM);
+  doc.text('Database Performance Report', margin, 64);
 
-  doc.setDrawColor(255, 255, 255, 0.3);
-  doc.setLineWidth(0.5);
-  doc.line(W / 2 - 40, 70, W / 2 + 40, 70);
-
-  const cardX = margin + 8;
-  const cardW = contentW - 16;
-  const cardY = 110;
-  const labelCol = cardX + 10;
-  const valueCol = cardX + 55;
-  const maxValW = cardW - 60;
+  doc.setDrawColor(220, 225, 235);
+  doc.setLineWidth(0.4);
+  doc.line(margin, 74, W - margin, 74);
 
   const serverVer = (db.server_version || 'Unknown');
   const shortVer = serverVer.indexOf('\n') > -1 ? serverVer.split('\n')[0] : serverVer;
   const cleanVer = shortVer.length > 60 ? shortVer.substring(0, 60) + '...' : shortVer;
-
   const presetLabel = (d.preset || 'custom').charAt(0).toUpperCase() + (d.preset || 'custom').slice(1);
 
-  const coverFields = [
-    ['Host', hostName],
-    ['Engine', (db.dialect_family || 'Unknown').toUpperCase()],
-    ['Version', cleanVer],
-    ['Preset', presetLabel],
-    ['Date', `${dateStr}  ·  ${timeStr}`],
-    ['Baseline Ping', db.ping_ms ? db.ping_ms.toFixed(1) + ' ms' : 'N/A'],
-  ];
+  /* Build all instance detail pairs */
+  const allFields = [];
+  allFields.push(['Host', hostName]);
+  allFields.push(['Engine', (db.dialect_family || 'Unknown').toUpperCase()]);
+  if (db.edition) {
+    let tier = db.edition;
+    if (db.service_objective) tier += ` (${db.service_objective})`;
+    if (db.hardware_generation) tier += ` - ${db.hardware_generation}`;
+    allFields.push(['Tier / SKU', tier]);
+  }
+  if (db.elastic_pool) allFields.push(['Elastic Pool', db.elastic_pool]);
+  if (db.vcores) allFields.push(['vCores', String(db.vcores)]);
+  if (db.memory_gb) allFields.push(['Memory', db.memory_gb + ' GB']);
+  if (db.innodb_buffer_pool_mb) allFields.push(['Buffer Pool', db.innodb_buffer_pool_mb + ' MB']);
+  if (db.innodb_buffer_pool_instances) allFields.push(['Pool Instances', String(db.innodb_buffer_pool_instances)]);
+  if (db.shared_buffers) allFields.push(['shared_buffers', db.shared_buffers]);
+  if (db.max_size_gb) allFields.push(['Max Size', db.max_size_gb + ' GB']);
+  if (db.current_size_mb) allFields.push(['DB Size', db.current_size_mb > 1024 ? (db.current_size_mb/1024).toFixed(1)+' GB' : db.current_size_mb+' MB']);
+  if (db.max_connections) allFields.push(['Max Connections', String(db.max_connections)]);
+  if (db.innodb_io_capacity) {
+    let cap = String(db.innodb_io_capacity);
+    if (db.innodb_io_capacity_max) cap += ' / ' + db.innodb_io_capacity_max + ' max';
+    allFields.push(['IO Capacity', cap]);
+  }
+  if (db.innodb_read_io_threads || db.innodb_write_io_threads)
+    allFields.push(['IO Threads', (db.innodb_read_io_threads||0) + 'R / ' + (db.innodb_write_io_threads||0) + 'W']);
+  if (db.innodb_redo_log_mb) allFields.push(['Redo Log', db.innodb_redo_log_mb + ' MB']);
+  if (db.innodb_flush_log_at_trx_commit !== undefined && db.innodb_flush_log_at_trx_commit !== null)
+    allFields.push(['Flush at Commit', String(db.innodb_flush_log_at_trx_commit)]);
+  if (db.work_mem) allFields.push(['work_mem', db.work_mem]);
+  if (db.effective_cache_size) allFields.push(['eff_cache_size', db.effective_cache_size]);
+  if (db.collation) allFields.push(['Collation', db.collation]);
+  if (db.character_set) allFields.push(['Charset', db.character_set]);
+  if (db.compatibility_level) allFields.push(['Compat Level', String(db.compatibility_level)]);
+  if (db.product_version) allFields.push(['Product Version', db.product_version]);
+  allFields.push(['Version', cleanVer]);
+  allFields.push(['Preset', presetLabel]);
+  allFields.push(['Date', dateStr + '  -  ' + timeStr]);
+  allFields.push(['Baseline Ping', db.ping_ms ? db.ping_ms.toFixed(1) + ' ms' : 'N/A']);
 
-  const rowH = 14;
-  const cardH = coverFields.length * rowH + 20;
+  /* Render two-column grid on cover page */
+  const gridY = 88;
+  const colW = contentW / 2;
+  const rowH = 11;
+  const leftRows = allFields.filter((_, i) => i % 2 === 0);
+  const rightRows = allFields.filter((_, i) => i % 2 === 1);
+  const maxRows = Math.max(leftRows.length, rightRows.length);
+  const gridH = maxRows * rowH + 14;
 
-  doc.setFillColor(...WHITE);
-  doc.roundedRect(cardX, cardY, cardW, cardH, 5, 5, 'F');
+  doc.setFillColor(248, 249, 252);
+  doc.roundedRect(margin, gridY, contentW, gridH, 4, 4, 'F');
   doc.setDrawColor(220, 225, 235);
   doc.setLineWidth(0.3);
-  doc.roundedRect(cardX, cardY, cardW, cardH, 5, 5, 'S');
+  doc.roundedRect(margin, gridY, contentW, gridH, 4, 4, 'S');
 
-  let cy = cardY + 16;
-  coverFields.forEach(([lbl, val], i) => {
-    if (i > 0) {
-      doc.setDrawColor(235, 238, 242);
-      doc.setLineWidth(0.2);
-      doc.line(labelCol, cy - 9, cardX + cardW - 10, cy - 9);
-    }
-    doc.setFontSize(9);
-    doc.setFont(undefined, 'normal');
-    doc.setTextColor(...DIM);
-    doc.text(lbl, labelCol, cy);
-    doc.setFontSize(10.5);
-    doc.setFont(undefined, 'bold');
-    doc.setTextColor(...DARK);
-    doc.text(String(val), valueCol, cy, { maxWidth: maxValW });
-    cy += rowH;
-  });
+  doc.setDrawColor(230, 233, 240);
+  doc.setLineWidth(0.2);
+  doc.line(margin + colW, gridY + 6, margin + colW, gridY + gridH - 6);
 
+  function drawCol(rows, xBase) {
+    let ry = gridY + 13;
+    rows.forEach(([lbl, val], i) => {
+      if (i > 0) {
+        doc.setDrawColor(238, 240, 244);
+        doc.setLineWidth(0.15);
+        doc.line(xBase + 6, ry - 7.5, xBase + colW - 6, ry - 7.5);
+      }
+      doc.setFontSize(7.5);
+      doc.setFont(undefined, 'normal');
+      doc.setTextColor(...DIM);
+      doc.text(lbl, xBase + 6, ry);
+      doc.setFontSize(8.5);
+      doc.setFont(undefined, 'bold');
+      doc.setTextColor(...DARK);
+      const maxTxtW = colW - 52;
+      const txt = String(val);
+      doc.text(txt.length > 40 ? txt.substring(0, 40) + '...' : txt, xBase + 46, ry, { maxWidth: maxTxtW });
+      ry += rowH;
+    });
+  }
+  drawCol(leftRows, margin);
+  drawCol(rightRows, margin + colW);
+
+  doc.setDrawColor(220, 225, 235);
+  doc.setLineWidth(0.3);
+  doc.line(margin, H - 30, W - margin, H - 30);
   doc.setFontSize(8.5);
   doc.setFont(undefined, 'normal');
-  doc.setTextColor(180, 195, 255);
-  doc.text('Generated by CloudBench', W / 2, H - 22, { align: 'center' });
+  doc.setTextColor(...DIM);
+  doc.text('Generated by Data Bench', W / 2, H - 22, { align: 'center' });
   doc.setFontSize(7.5);
-  doc.setTextColor(150, 170, 230);
+  doc.setTextColor(180, 185, 195);
   doc.text('Cloud Database Performance Benchmarking', W / 2, H - 16, { align: 'center' });
 
   /* ── Executive Summary ── */
@@ -1794,7 +1973,7 @@ function exportPDF() {
   /* ── Appendix A: Test Definitions ── */
   y = newPage();
   y = sectionTitle('Appendix A -- Test Definitions', y);
-  y = descBlock('Complete reference of every test executed by CloudBench, including methodology, what is measured, and how to interpret the results.', y);
+  y = descBlock('Complete reference of every test executed by Data Bench, including methodology, what is measured, and how to interpret the results.', y);
 
   const APPENDIX_TESTS = [
     { name: 'Random Read (I/O)',
@@ -1836,7 +2015,7 @@ function exportPDF() {
   /* ── Appendix B: Metric Definitions ── */
   y = newPage();
   y = sectionTitle('Appendix B -- Metric Definitions', y);
-  y = descBlock('Complete reference of every metric reported by CloudBench. Metrics are grouped by category. Thresholds and interpretation guidance are provided for each.', y);
+  y = descBlock('Complete reference of every metric reported by Data Bench. Metrics are grouped by category. Thresholds and interpretation guidance are provided for each.', y);
 
   const APPENDIX_METRICS = [
     { category: 'Throughput Metrics', metrics: [

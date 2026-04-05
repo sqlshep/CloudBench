@@ -38,7 +38,7 @@ def _wizard():
 
     console.print()
     console.print(Panel.fit(
-        "[bold cyan]CloudBench — Database Performance Suite[/]\n"
+        "[bold cyan]Data Bench — Database Performance Suite[/]\n"
         "Cloud database benchmarking made simple.\n\n"
         "This wizard will walk you through everything.",
         border_style="cyan",
@@ -191,6 +191,7 @@ def _confirm_and_run(db: DatabaseConnection, cfg: dict, tests: list[str], suite:
         "dialect_family": db.dialect_family,
         "server_version": vr.server_version,
         "ping_ms": vr.ping_ms,
+        **vr.server_metadata,
     }
 
     reporter = ConsoleReporter(console)
@@ -486,7 +487,7 @@ def _execute_suite(db: DatabaseConnection, cfg: dict, tests: list[str]) -> FullB
               help="Output directory for reports")
 @click.pass_context
 def cli(ctx, config, profile, preset, output):
-    """CloudBench: Cloud database performance test suite.
+    """Data Bench: Cloud database performance test suite.
 
     Run without arguments for the interactive wizard, or use subcommands
     for scriptable benchmarking.
@@ -547,6 +548,7 @@ def run(ctx, host, port, database, username, password, dialect, preset):
         "dialect_family": db.dialect_family,
         "server_version": vr.server_version,
         "ping_ms": vr.ping_ms,
+        **vr.server_metadata,
     }
 
     reporter = ConsoleReporter(console)
@@ -604,7 +606,7 @@ def show(report_path):
 def web(host, port):
     """Launch the web UI for browser-based benchmarking."""
     console.print(Panel.fit(
-        f"[bold cyan]CloudBench Web Interface[/]\n\n"
+        f"[bold cyan]Data Bench Web Interface[/]\n\n"
         f"  Open [bold]http://localhost:{port}[/] in your browser\n"
         f"  Press Ctrl+C to stop",
         border_style="cyan",

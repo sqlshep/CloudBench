@@ -83,6 +83,248 @@ class ConnectionConfig:
         )
 
 
+def _gather_mssql_metadata_sa(conn) -> dict:
+    """Query Azure SQL / SQL Server metadata via a SQLAlchemy connection."""
+    metadata = {}
+    try:
+        ee = conn.execute(text("SELECT CAST(SERVERPROPERTY('EngineEdition') AS INT)")).scalar()
+        metadata["engine_edition"] = int(ee) if ee else None
+        pv = conn.execute(text("SELECT CAST(SERVERPROPERTY('ProductVersion') AS NVARCHAR(128))")).scalar()
+        metadata["product_version"] = str(pv) if pv else ""
+
+        try:
+            row = conn.execute(text("SELECT cpu_count, committed_target_kb FROM sys.dm_os_sys_info")).fetchone()
+            if row:
+                metadata["vcores"] = row[0]
+                metadata["memory_gb"] = round(row[1] / 1048576, 1) if row[1] else None
+        except Exception:
+            pass
+
+        try:
+            metadata["collation"] = str(
+                conn.execute(text("SELECT CAST(DATABASEPROPERTYEX(DB_NAME(), 'Collation') AS NVARCHAR(128))")).scalar() or "")
+        except Exception:
+            pass
+
+        try:
+            cl = conn.execute(text("SELECT compatibility_level FROM sys.databases WHERE name = DB_NAME()")).scalar()
+            if cl:
+                metadata["compatibility_level"] = int(cl)
+        except Exception:
+            pass
+
+        engine_ed = metadata.get("engine_edition")
+        if engine_ed == 5:
+            metadata["edition"] = str(
+                conn.execute(text("SELECT CAST(DATABASEPROPERTYEX(DB_NAME(), 'Edition') AS NVARCHAR(128))")).scalar() or "")
+            metadata["service_objective"] = str(
+                conn.execute(text("SELECT CAST(DATABASEPROPERTYEX(DB_NAME(), 'ServiceObjective') AS NVARCHAR(128))")).scalar() or "")
+            try:
+                max_bytes = conn.execute(text(
+                    "SELECT CAST(DATABASEPROPERTYEX(DB_NAME(), 'MaxSizeInBytes') AS BIGINT)")).scalar()
+                if max_bytes and max_bytes > 0:
+                    metadata["max_size_gb"] = round(max_bytes / (1024 ** 3), 1)
+            except Exception:
+                pass
+            try:
+                sz = conn.execute(text("SELECT SUM(size) * 8.0 / 1024 FROM sys.database_files")).scalar()
+                if sz:
+                    metadata["current_size_mb"] = round(float(sz), 1)
+            except Exception:
+                pass
+            try:
+                row = conn.execute(text(
+                    "SELECT edition, service_objective, elastic_pool_name "
+                    "FROM sys.database_service_objectives WHERE database_id = DB_ID()")).fetchone()
+                if row:
+                    metadata["elastic_pool"] = row[2]
+            except Exception:
+                metadata["elastic_pool"] = None
+        elif engine_ed == 8:
+            metadata["edition"] = "Managed Instance"
+            try:
+                row = conn.execute(text(
+                    "SELECT TOP 1 sku, hardware_generation, "
+                    "reserved_storage_mb, storage_space_used_mb, virtual_core_count "
+                    "FROM sys.server_resource_stats ORDER BY start_time DESC")).fetchone()
+                if row:
+                    metadata["service_objective"] = str(row[0] or "")
+                    metadata["hardware_generation"] = str(row[1] or "")
+                    if row[2]:
+                        metadata["max_size_gb"] = round(row[2] / 1024, 1)
+                    if row[3]:
+                        metadata["current_size_mb"] = round(float(row[3]), 1)
+                    if row[4]:
+                        metadata["vcores"] = row[4]
+            except Exception:
+                try:
+                    metadata["service_objective"] = str(
+                        conn.execute(text("SELECT CAST(SERVERPROPERTY('Edition') AS NVARCHAR(128))")).scalar() or "")
+                except Exception:
+                    pass
+            try:
+                sz = conn.execute(text("SELECT SUM(size) * 8.0 / 1024 FROM sys.database_files")).scalar()
+                if sz:
+                    metadata["current_size_mb"] = round(float(sz), 1)
+            except Exception:
+                pass
+    except Exception:
+        pass
+    return metadata
+
+
+def _gather_mysql_metadata(conn) -> dict:
+    """Query MySQL / Cloud SQL instance metadata via a SQLAlchemy connection."""
+    metadata = {}
+    try:
+        def _var(name: str):
+            row = conn.execute(text(f"SHOW VARIABLES LIKE '{name}'")).fetchone()
+            return row[1] if row else None
+
+        def _status(name: str):
+            row = conn.execute(text(f"SHOW STATUS LIKE '{name}'")).fetchone()
+            return row[1] if row else None
+
+        ver_comment = _var("version_comment") or ""
+        metadata["version_comment"] = ver_comment
+        is_cloud = any(kw in ver_comment.lower() for kw in ("google", "cloud sql", "rds", "aurora", "azure"))
+        if is_cloud:
+            metadata["edition"] = ver_comment
+
+        buf = _var("innodb_buffer_pool_size")
+        if buf:
+            buf_bytes = int(buf)
+            metadata["innodb_buffer_pool_mb"] = round(buf_bytes / (1024 * 1024))
+            metadata["memory_gb"] = round(buf_bytes / (1024 ** 3), 1)
+
+        max_conns = _var("max_connections")
+        if max_conns:
+            metadata["max_connections"] = int(max_conns)
+
+        collation = _var("collation_server")
+        if collation:
+            metadata["collation"] = collation
+
+        charset = _var("character_set_server")
+        if charset:
+            metadata["character_set"] = charset
+
+        innodb_ver = _var("innodb_version")
+        if innodb_ver:
+            metadata["innodb_version"] = innodb_ver
+
+        read_only = _var("read_only")
+        if read_only:
+            metadata["read_only"] = read_only.upper() == "ON"
+
+        io_cap = _var("innodb_io_capacity")
+        if io_cap:
+            metadata["innodb_io_capacity"] = int(io_cap)
+        io_cap_max = _var("innodb_io_capacity_max")
+        if io_cap_max:
+            metadata["innodb_io_capacity_max"] = int(io_cap_max)
+
+        rio = _var("innodb_read_io_threads")
+        if rio:
+            metadata["innodb_read_io_threads"] = int(rio)
+        wio = _var("innodb_write_io_threads")
+        if wio:
+            metadata["innodb_write_io_threads"] = int(wio)
+
+        bp_instances = _var("innodb_buffer_pool_instances")
+        if bp_instances:
+            metadata["innodb_buffer_pool_instances"] = int(bp_instances)
+
+        redo = _var("innodb_redo_log_capacity")
+        if not redo:
+            redo = _var("innodb_log_file_size")
+        if redo:
+            metadata["innodb_redo_log_mb"] = round(int(redo) / (1024 * 1024))
+
+        flush = _var("innodb_flush_log_at_trx_commit")
+        if flush:
+            metadata["innodb_flush_log_at_trx_commit"] = int(flush)
+
+        tmp = _var("tmp_table_size")
+        if tmp:
+            metadata["tmp_table_size_mb"] = round(int(tmp) / (1024 * 1024))
+
+        try:
+            row = conn.execute(text(
+                "SELECT ROUND(SUM(data_length + index_length) / 1024 / 1024, 1) "
+                "FROM information_schema.tables WHERE table_schema = DATABASE()")).fetchone()
+            if row and row[0]:
+                metadata["current_size_mb"] = float(row[0])
+        except Exception:
+            pass
+
+        uptime = _status("Uptime")
+        if uptime:
+            metadata["uptime_hours"] = round(int(uptime) / 3600, 1)
+
+    except Exception:
+        pass
+    return metadata
+
+
+def _gather_pg_metadata(conn) -> dict:
+    """Query PostgreSQL / Cloud SQL instance metadata via a SQLAlchemy connection."""
+    metadata = {}
+    try:
+        ver = conn.execute(text("SHOW server_version")).scalar() or ""
+        metadata["product_version"] = ver
+
+        try:
+            metadata["max_connections"] = int(
+                conn.execute(text("SHOW max_connections")).scalar() or 0)
+        except Exception:
+            pass
+
+        try:
+            metadata["shared_buffers"] = conn.execute(
+                text("SHOW shared_buffers")).scalar() or ""
+        except Exception:
+            pass
+
+        try:
+            metadata["work_mem"] = conn.execute(
+                text("SHOW work_mem")).scalar() or ""
+        except Exception:
+            pass
+
+        try:
+            metadata["effective_cache_size"] = conn.execute(
+                text("SHOW effective_cache_size")).scalar() or ""
+        except Exception:
+            pass
+
+        try:
+            metadata["collation"] = conn.execute(text(
+                "SELECT datcollate FROM pg_database WHERE datname = current_database()")).scalar() or ""
+        except Exception:
+            pass
+
+        try:
+            row = conn.execute(text(
+                "SELECT pg_size_pretty(pg_database_size(current_database())), "
+                "pg_database_size(current_database())")).fetchone()
+            if row:
+                metadata["current_size_pretty"] = row[0]
+                metadata["current_size_mb"] = round(row[1] / (1024 * 1024), 1)
+        except Exception:
+            pass
+
+        ver_lower = ver.lower()
+        if "cloud" in ver_lower or "cloudsql" in ver_lower:
+            metadata["edition"] = "Google Cloud SQL"
+        elif "rds" in ver_lower:
+            metadata["edition"] = "Amazon RDS"
+
+    except Exception:
+        pass
+    return metadata
+
+
 @dataclass
 class PoolStats:
     """Snapshot of connection pool state."""
@@ -102,6 +344,7 @@ class ValidationResult:
     error: str = ""
     dialect_family: str = ""
     database_created: bool = False
+    server_metadata: dict = field(default_factory=dict)
 
 
 class DatabaseConnection:
@@ -350,12 +593,21 @@ class DatabaseConnection:
                     max_conns = 0
                     self._enable_mssql_snapshot_isolation()
 
+                metadata = {}
+                if family == "mssql":
+                    metadata = _gather_mssql_metadata_sa(conn)
+                elif family == "mysql":
+                    metadata = _gather_mysql_metadata(conn)
+                elif family == "postgresql":
+                    metadata = _gather_pg_metadata(conn)
+
                 return ValidationResult(
                     success=True,
                     server_version=version,
                     ping_ms=ping,
                     max_connections=max_conns,
                     dialect_family=family,
+                    server_metadata=metadata,
                 )
         except Exception as e:
             err_str = str(e)
