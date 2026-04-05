@@ -15,6 +15,7 @@ from sqlalchemy.engine import Engine
 DB_TYPE_DIALECTS = {
     "Azure SQL Database": "mssql+pymssql",
     "Azure SQL Managed Instance": "mssql+pymssql",
+    "Azure SQL Hyperscale": "mssql+pymssql",
     "Amazon RDS (PostgreSQL)": "postgresql+psycopg",
     "Amazon Aurora (PostgreSQL)": "postgresql+psycopg",
     "Amazon Aurora (MySQL)": "mysql+pymysql",
@@ -28,6 +29,7 @@ DB_TYPE_DIALECTS = {
 DB_TYPE_PORTS = {
     "Azure SQL Database": "1433",
     "Azure SQL Managed Instance": "3342",
+    "Azure SQL Hyperscale": "1433",
     "Amazon RDS (PostgreSQL)": "5432",
     "Amazon Aurora (PostgreSQL)": "5432",
     "Amazon Aurora (MySQL)": "3306",
@@ -357,7 +359,7 @@ class DatabaseConnection:
                 )
         except Exception as e:
             err_str = str(e)
-            is_db_missing = "18456" in err_str or "does not exist" in err_str.lower() or "3D000" in err_str or "1049" in err_str
+            is_db_missing = "18456" in err_str or "40615" in err_str or "does not exist" in err_str.lower() or "3D000" in err_str or "1049" in err_str
             if is_db_missing:
                 created, create_err = self._try_auto_create_database()
                 if create_err is None:

@@ -61,7 +61,7 @@ def _validate_mssql_direct(config: ConnectionConfig) -> ValidationResult:
         )
     except Exception as e:
         err_str = str(e)
-        if "18456" in err_str or "does not exist" in err_str.lower():
+        if "18456" in err_str or "40615" in err_str or "does not exist" in err_str.lower():
             created, create_err = DatabaseConnection(config)._auto_create_mssql(
                 config.database
             )
