@@ -140,6 +140,45 @@ async def landing():
     return HTMLResponse(html_path.read_text())
 
 
+@app.get("/docs/readme", response_class=HTMLResponse)
+async def readme_page():
+    readme_path = Path(__file__).parent.parent.parent.parent / "README.md"
+    if not readme_path.exists():
+        return HTMLResponse("<h1>README not found</h1>", status_code=404)
+    import markdown as _md
+    raw = readme_path.read_text(encoding="utf-8")
+    body = _md.markdown(raw, extensions=["tables", "fenced_code", "toc", "nl2br"])
+    return HTMLResponse(f"""<!DOCTYPE html><html><head><meta charset="utf-8">
+<title>Data Bench - Documentation</title>
+<style>
+body {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  background: #0a0e17; color: #c9d1d9; max-width: 880px; margin: 0 auto; padding: 2rem 2.5rem; line-height: 1.7; }}
+a {{ color: #60a5fa; }}
+h1,h2,h3,h4 {{ color: #f0f6fc; margin-top: 2rem; }}
+h1 {{ font-size: 2rem; border-bottom: 2px solid #1e3a5f; padding-bottom: 0.5rem; }}
+h2 {{ font-size: 1.5rem; border-bottom: 1px solid #1e293b; padding-bottom: 0.3rem; }}
+h3 {{ font-size: 1.15rem; }}
+pre {{ background: #111827; padding: 1rem; border-radius: 8px; overflow-x: auto; border: 1px solid #1e293b; }}
+code {{ color: #7dd3fc; font-size: 0.9em; }}
+p code, li code, td code {{ background: #1a2332; padding: 0.15em 0.45em; border-radius: 4px; }}
+ul, ol {{ padding-left: 1.8rem; }}
+li {{ margin: 0.35rem 0; }}
+p {{ margin: 0.6rem 0; }}
+table {{ width: 100%; border-collapse: collapse; margin: 1rem 0; }}
+th, td {{ padding: 0.55rem 0.85rem; border: 1px solid #1e293b; text-align: left; }}
+th {{ background: #111827; color: #60a5fa; font-weight: 600; font-size: 0.88rem; }}
+tr:nth-child(even) {{ background: rgba(17,24,39,0.5); }}
+td {{ font-size: 0.88rem; }}
+hr {{ border: none; border-top: 1px solid #1e293b; margin: 2rem 0; }}
+blockquote {{ border-left: 3px solid #3b82f6; margin: 1rem 0; padding: 0.5rem 1rem; color: #8b949e; background: rgba(59,130,246,0.05); border-radius: 0 6px 6px 0; }}
+.back {{ display: inline-flex; align-items: center; gap: 0.4rem; margin-bottom: 1.5rem; color: #60a5fa; text-decoration: none; font-size: 0.92rem; }}
+.back:hover {{ text-decoration: underline; }}
+</style></head><body>
+<a href="/" class="back">&larr; Back to Data Bench</a>
+{body}
+</body></html>""")
+
+
 @app.get("/login", response_class=HTMLResponse)
 async def login_page():
     html_path = STATIC_DIR / "login.html"
@@ -183,7 +222,9 @@ async def index(request: Request):
 
 
 @app.get("/api/db-types")
-async def db_types():
+async def db_types(request: Request):
+    if not _is_authenticated(request):
+        return {"error": "Not authenticated"}
     return {
         "types": [
             {"name": k, "dialect": v, "default_port": int(DB_TYPE_PORTS.get(k, 5432))}
@@ -193,7 +234,9 @@ async def db_types():
 
 
 @app.get("/api/host-ip")
-async def host_ip():
+async def host_ip(request: Request):
+    if not _is_authenticated(request):
+        return {"error": "Not authenticated"}
     import urllib.request
     try:
         ip = urllib.request.urlopen("https://api.ipify.org", timeout=5).read().decode()
@@ -203,7 +246,9 @@ async def host_ip():
 
 
 @app.get("/api/presets")
-async def presets():
+async def presets(request: Request):
+    if not _is_authenticated(request):
+        return {"error": "Not authenticated"}
     return {
         name: {
             "label": p["label"],
@@ -275,12 +320,12 @@ async def validate_connection(req: ConnectRequest, request: Request):
             thread.start()
             while True:
                 try:
-                    item = await asyncio.to_thread(step_queue.get, timeout=30)
+                    item = await asyncio.to_thread(step_queue.get, timeout=300)
                     yield f"data: {json.dumps(item)}\n\n"
                     if item.get("step") in ("done", "error"):
                         break
                 except Exception:
-                    yield f"data: {json.dumps({'step': 'error', 'msg': 'Validation timed out'})}\n\n"
+                    yield f"data: {json.dumps({'step': 'error', 'msg': 'Validation timed out (5 min)'})}\n\n"
                     break
 
         return StreamingResponse(_event_stream(), media_type="text/event-stream")
@@ -400,6 +445,73 @@ def _gather_mssql_metadata(cursor) -> dict:
     return metadata
 
 
+def _auto_create_mssql_stepped(config: ConnectionConfig, steps: "queue.Queue") -> tuple:
+    """Create a database on Azure SQL with progress streaming. Returns (created, error)."""
+    import pymssql
+
+    def _connect_master():
+        """Try connecting to master, retrying for up to ~2 min.
+        Hyperscale logical servers can be slow to accept master connections."""
+        for attempt in range(15):
+            try:
+                c = pymssql.connect(
+                    server=config.host, port=config.port,
+                    user=config.username, password=config.password,
+                    database="master", tds_version="7.3",
+                    login_timeout=30, autocommit=True,
+                )
+                return c, None
+            except Exception as e:
+                if attempt < 14:
+                    elapsed = (attempt + 1) * 8
+                    steps.put({"step": "db_missing", "msg": f"Connecting to master... ({elapsed}s)"})
+                    time.sleep(8)
+                else:
+                    return None, str(e)
+        return None, "Timed out connecting to master after 2 minutes"
+
+    conn, err = _connect_master()
+    if err:
+        return False, err
+
+    try:
+        cursor = conn.cursor()
+        cursor.execute("SELECT DB_ID(%s)", (config.database,))
+        row = cursor.fetchone()
+        exists = row and row[0] is not None
+
+        if not exists:
+            cursor.execute(f"CREATE DATABASE [{config.database}]")
+            steps.put({"step": "db_created", "msg": f"CREATE DATABASE issued -- Hyperscale provisioning can take up to 2 min..."})
+
+            for wait in range(24):
+                time.sleep(5)
+                elapsed = (wait + 1) * 5
+                steps.put({"step": "db_created", "msg": f"Provisioning database... ({elapsed}s)"})
+                try:
+                    tc = pymssql.connect(
+                        server=config.host, port=config.port,
+                        user=config.username, password=config.password,
+                        database=config.database, tds_version="7.3",
+                        login_timeout=10,
+                    )
+                    tc.close()
+                    steps.put({"step": "db_created", "msg": f"Database '{config.database}' is online"})
+                    break
+                except Exception:
+                    if wait == 23:
+                        steps.put({"step": "db_created", "msg": "Still provisioning -- continuing anyway"})
+        else:
+            steps.put({"step": "db_created", "msg": f"Database '{config.database}' already exists"})
+
+        cursor.close()
+        conn.close()
+        return True, None
+    except Exception as e:
+        conn.close()
+        return False, str(e)
+
+
 def _validate_mssql_stepped(config: ConnectionConfig, steps: "queue.Queue") -> ValidationResult:
     import pymssql
     try:
@@ -459,9 +571,8 @@ def _validate_mssql_stepped(config: ConnectionConfig, steps: "queue.Queue") -> V
         err_str = str(e)
         if "18456" in err_str or "40615" in err_str or "does not exist" in err_str.lower():
             steps.put({"step": "db_missing", "msg": f"Database '{config.database}' not found -- creating..."})
-            created, create_err = DatabaseConnection(config)._auto_create_mssql(config.database)
+            created, create_err = _auto_create_mssql_stepped(config, steps)
             if create_err is None:
-                steps.put({"step": "db_created", "msg": f"Database '{config.database}' created"})
                 vr = _validate_mssql_stepped(config, steps)
                 vr.database_created = True
                 return vr
@@ -522,7 +633,9 @@ def _validate_generic_stepped(config: ConnectionConfig, steps: "queue.Queue") ->
 
 
 @app.get("/api/runs/{run_id}")
-async def get_run(run_id: str):
+async def get_run(run_id: str, request: Request):
+    if not _is_authenticated(request):
+        return {"error": "Not authenticated"}
     run = _runs.get(run_id)
     if not run:
         return {"error": "Run not found"}
@@ -535,7 +648,9 @@ async def get_run(run_id: str):
 
 
 @app.get("/api/runs/{run_id}/report")
-async def get_report(run_id: str):
+async def get_report(run_id: str, request: Request):
+    if not _is_authenticated(request):
+        return {"error": "Not authenticated"}
     run = _runs.get(run_id)
     if not run or "results" not in run:
         return {"error": "Results not available"}

@@ -479,6 +479,10 @@ async function init() {
     fetch('/api/db-types').then(r=>r.json()),
     fetch('/api/presets').then(r=>r.json()),
   ]);
+  if (dtRes.error === 'Not authenticated' || prRes.error === 'Not authenticated') {
+    window.location.href = '/login';
+    return;
+  }
   dbTypes = dtRes.types;
   presets = prRes;
 

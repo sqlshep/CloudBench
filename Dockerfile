@@ -23,7 +23,8 @@ RUN pip install --no-cache-dir \
     "jinja2>=3.1" \
     "fastapi>=0.110" \
     "uvicorn[standard]>=0.27" \
-    "websockets>=12.0"
+    "websockets>=12.0" \
+    "markdown>=3.5"
 
 ENV PYTHONPATH=/app/src
 

@@ -491,34 +491,61 @@ class DatabaseConnection:
 
         Connects without specifying a database so it works on SQL MI public
         endpoints where direct access to 'master' via URL may be blocked.
+        Retries up to 3 times for transient Azure SQL errors.
         """
-        try:
-            import pymssql
-            conn = pymssql.connect(
-                server=self.config.host,
-                port=self.config.port,
-                user=self.config.username,
-                password=self.config.password,
-                tds_version="7.3",
-                login_timeout=30,
-                autocommit=True,
-            )
-            cursor = conn.cursor()
-            cursor.execute("SELECT DB_ID(%s)", (target_db,))
-            row = cursor.fetchone()
-            exists = row and row[0] is not None
+        import pymssql
+        last_err = None
+        for attempt in range(3):
+            try:
+                conn = pymssql.connect(
+                    server=self.config.host,
+                    port=self.config.port,
+                    user=self.config.username,
+                    password=self.config.password,
+                    database="master",
+                    tds_version="7.3",
+                    login_timeout=30,
+                    autocommit=True,
+                )
+                cursor = conn.cursor()
+                cursor.execute("SELECT DB_ID(%s)", (target_db,))
+                row = cursor.fetchone()
+                exists = row and row[0] is not None
 
-            created = False
-            if not exists:
-                cursor.execute(f"CREATE DATABASE [{target_db}]")
-                created = True
+                created = False
+                if not exists:
+                    cursor.execute(f"CREATE DATABASE [{target_db}]")
+                    created = True
 
-            cursor.close()
-            conn.close()
-            self._rebuild_engine()
-            return created, None
-        except Exception as e:
-            return False, str(e)
+                cursor.close()
+                conn.close()
+
+                if created:
+                    for wait in range(12):
+                        time.sleep(5)
+                        try:
+                            test_conn = pymssql.connect(
+                                server=self.config.host,
+                                port=self.config.port,
+                                user=self.config.username,
+                                password=self.config.password,
+                                database=target_db,
+                                tds_version="7.3",
+                                login_timeout=10,
+                            )
+                            test_conn.close()
+                            break
+                        except Exception:
+                            if wait == 11:
+                                pass
+
+                self._rebuild_engine()
+                return created, None
+            except Exception as e:
+                last_err = str(e)
+                if attempt < 2:
+                    time.sleep(2)
+        return False, last_err
 
     def _rebuild_engine(self):
         """Dispose the current engine and create a fresh one."""
