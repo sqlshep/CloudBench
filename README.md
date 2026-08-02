@@ -6,6 +6,39 @@ Data Bench is a comprehensive benchmark suite for managed cloud databases where 
 
 ---
 
+## Quick Start
+
+**Prerequisites:** Python 3.11+ and `git`. That's it — no database is installed locally; Data Bench connects to a database you already have.
+
+```bash
+# 1. Clone the repo
+git clone https://github.com/sqlshep/CloudBench.git
+cd CloudBench
+
+# 2. Create an isolated environment and install
+python3 -m venv .venv
+source .venv/bin/activate        # Windows: .venv\Scripts\activate
+pip install -e .
+
+# 3. Launch the web UI
+sqlio-cloud web                  # add --port 9000 to change the port
+```
+
+Then open **http://localhost:8080** in your browser and sign in:
+
+| Field | Value |
+|---|---|
+| **Username** | `sqladmin` |
+| **Password** | `cloudbench` |
+
+From there, enter your database connection details, pick a preset, and run. See [How do I use it?](#how-do-i-use-it) for the full walkthrough.
+
+> **Prefer the terminal?** Run `sqlio-cloud` (no arguments) for an interactive setup wizard, or `sqlio-cloud run --help` for scriptable/CI usage.
+>
+> **Troubleshooting:** If the connection page shows *"Data Bench IP address: unable to detect"* or every connection times out, the machine running Data Bench has no outbound internet access — run it somewhere that can reach your database's host and port. Connection errors on the page include specific, copy-pasteable remediation steps.
+
+---
+
 ## Before you start
 
 > **Do not run Data Bench against QA, staging, or production databases.**
@@ -44,7 +77,7 @@ Data Bench generates synthetic load — concurrent reads, writes, bulk inserts, 
 
 | Provider | Services |
 |---|---|
-| **Microsoft Azure** | Azure SQL Database, Azure SQL Managed Instance*, Azure Database for PostgreSQL/MySQL |
+| **Microsoft Azure** | Azure SQL Database (including Hyperscale), Azure SQL Managed Instance*, Azure Database for PostgreSQL/MySQL |
 | **Amazon Web Services** | Amazon RDS (PostgreSQL, MySQL, SQL Server), Amazon Aurora (PostgreSQL, MySQL) |
 | **Google Cloud** | Cloud SQL (PostgreSQL, MySQL, SQL Server), AlloyDB |
 | **Self-hosted** | Any PostgreSQL, MySQL, or SQL Server accessible over the network |
@@ -354,3 +387,9 @@ Yes. After choosing a preset, you can check or uncheck individual tests on the c
 ## What happens to the test data after the benchmark?
 
 All test tables are dropped when the benchmark completes. If the benchmark is interrupted (browser closed, timeout), the tables remain in the database but are automatically dropped at the start of the next run. The tables use distinctive prefixes (`bench_io`, `bench_accounts`, `bench_net_bw`, `dsb_zone`, `dsb_country`, etc.) so they're easy to identify and drop manually if needed.
+
+---
+
+## License
+
+Data Bench is released under the [MIT License](LICENSE). You are free to use, modify, and distribute it, including for commercial purposes, provided the copyright notice and license text are retained.

@@ -282,10 +282,18 @@ body {
         </div>
       </div>
 
-      <div id="host-ip-bar" style="background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:0.65rem 1rem;margin-bottom:1rem;font-size:0.82rem;display:flex;align-items:center;gap:0.6rem">
-        <span style="color:var(--text-dim)">Data Bench IP address:</span>
-        <span id="host-ip" style="color:var(--blue);font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-weight:600">detecting...</span>
-        <span style="color:var(--text-dim);font-size:0.75rem">-- add this to your database firewall rules</span>
+      <div id="host-ip-bar" style="background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:0.65rem 1rem;margin-bottom:1rem;font-size:0.82rem">
+        <div style="display:flex;align-items:center;gap:0.6rem;flex-wrap:wrap">
+          <span style="color:var(--text-dim)">Data Bench IP address:</span>
+          <span id="host-ip" style="color:var(--blue);font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-weight:600">detecting...</span>
+          <span id="host-ip-hint" style="color:var(--text-dim);font-size:0.75rem">-- add this to your database firewall rules</span>
+          <a id="host-ip-retry" href="#" class="hidden" style="color:var(--blue);font-size:0.75rem;text-decoration:underline">retry</a>
+        </div>
+        <div id="host-ip-note" class="hidden" style="color:var(--text-dim);font-size:0.75rem;margin-top:0.4rem;line-height:1.5">
+          Couldn't auto-detect the public IP (the machine running Data Bench may have no outbound internet access). This is only used to help you allow-list Data Bench in your database firewall — you can look it up yourself at
+          <a href="https://api.ipify.org" target="_blank" rel="noopener" style="color:var(--blue)">api.ipify.org</a>,
+          or allow <code>0.0.0.0/0</code> for a throwaway test server. If connections also time out, run Data Bench somewhere that can reach your database's host and port.
+        </div>
       </div>
 
       <div id="gcp-guidance" class="hidden" style="background:rgba(88,166,255,0.08);border:1px solid rgba(88,166,255,0.25);border-radius:8px;padding:1rem 1.2rem;margin-bottom:1rem;font-size:0.82rem;line-height:1.6;color:var(--text)">
@@ -530,11 +538,40 @@ async function init() {
   });
   updateHostHints();
 
-  fetch('/api/host-ip').then(r => r.json()).then(d => {
-    document.getElementById('host-ip').textContent = d.ip || 'unable to detect';
-  }).catch(() => {
-    document.getElementById('host-ip').textContent = 'unable to detect';
+  function detectHostIp() {
+    const ipEl = document.getElementById('host-ip');
+    const hintEl = document.getElementById('host-ip-hint');
+    const noteEl = document.getElementById('host-ip-note');
+    const retryEl = document.getElementById('host-ip-retry');
+    ipEl.textContent = 'detecting...';
+    ipEl.style.color = 'var(--blue)';
+    noteEl.classList.add('hidden');
+    retryEl.classList.add('hidden');
+    hintEl.classList.remove('hidden');
+    const showFailure = () => {
+      ipEl.textContent = 'unable to detect';
+      ipEl.style.color = 'var(--text-dim)';
+      hintEl.classList.add('hidden');
+      noteEl.classList.remove('hidden');
+      retryEl.classList.remove('hidden');
+    };
+    fetch('/api/host-ip').then(r => r.json()).then(d => {
+      if (d && d.ip) {
+        ipEl.textContent = d.ip;
+        ipEl.style.color = 'var(--blue)';
+        hintEl.classList.remove('hidden');
+        noteEl.classList.add('hidden');
+        retryEl.classList.add('hidden');
+      } else {
+        showFailure();
+      }
+    }).catch(showFailure);
+  }
+  document.getElementById('host-ip-retry').addEventListener('click', (e) => {
+    e.preventDefault();
+    detectHostIp();
   });
+  detectHostIp();
 
   renderTestGrid();
   selectPreset('standard');
