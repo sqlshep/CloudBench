@@ -8,7 +8,7 @@ version = "0.1.0"
 description = "Cloud database performance test suite: I/O benchmarking, integrity stress testing, and analytical queries"
 readme = "README.md"
 license = { text = "MIT" }
-authors = [{ name = "sqlshep" }]
+authors = [{ name = "Shep Sheppard" }]
 requires-python = ">=3.11"
 dependencies = [
     "sqlalchemy>=2.0",
