@@ -24,6 +24,15 @@ Data Bench generates synthetic load — concurrent reads, writes, bulk inserts, 
 
 ## How do I use it?
 
+> **Signing in:** The web UI is protected by a simple placeholder login. Use these credentials to access the benchmark lab:
+>
+> | Field | Value |
+> |---|---|
+> | **Username** | `sqladmin` |
+> | **Password** | `cloudbench` |
+>
+> This is not a secure credential — it exists only to gate the demo interface. Change it (`_AUTH_USER` / `_AUTH_HASH` in `src/sqlio_cloud/web/app.py`) before exposing Data Bench publicly.
+
 1. **Connect** — Enter your database host, port, credentials, and dialect (SQL Server, PostgreSQL, or MySQL). The connection page displays the Data Bench host IP address for your firewall rules. Data Bench validates the connection, detects the server version, and auto-creates the database if it doesn't exist.
 2. **Configure** — Choose a preset (Smoke, Standard, or Full Stress) or customize individual tests, concurrency levels, and block sizes.
 3. **Run** — Data Bench executes the selected tests with live progress streaming. No agents or software are installed on your database server — everything runs through SQL over the network.

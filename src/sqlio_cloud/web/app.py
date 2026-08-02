@@ -78,7 +78,9 @@ def _validate_mssql_direct(config: ConnectionConfig) -> ValidationResult:
         return ValidationResult(success=False, error=err_str)
 
 _AUTH_USER = "sqladmin"
-_AUTH_HASH = "9c82affa7f297103c1c747ff8c5e506ac3863070912a272ad92c2f62d90328cc"
+# Placeholder login credentials (username: sqladmin / password: cloudbench).
+# Not secure -- intended only to gate the demo web UI. See README.
+_AUTH_HASH = "f851f52c01b79efb08ad9a3f02085455f9611156779a8cb687c87b254194b101"
 _AUTH_SALT = "cloudbench_v1"
 _active_sessions: set[str] = set()
 
