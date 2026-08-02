@@ -33,8 +33,6 @@ Then open **http://localhost:8080** in your browser and sign in:
 
 From there, enter your database connection details, pick a preset, and run. See [How do I use it?](#how-do-i-use-it) for the full walkthrough.
 
-> **Prefer the terminal?** Run `sqlio-cloud` (no arguments) for an interactive setup wizard, or `sqlio-cloud run --help` for scriptable/CI usage.
->
 > **Troubleshooting:** If the connection page shows *"Data Bench IP address: unable to detect"* or every connection times out, the machine running Data Bench has no outbound internet access — run it somewhere that can reach your database's host and port. Connection errors on the page include specific, copy-pasteable remediation steps.
 
 **Deploying to the cloud?** See the [**Docker Deployment Guide**](DEPLOYMENT.md) for step-by-step instructions on running Data Bench as a container on **Azure** (Container Apps), **Google Cloud** (Cloud Run), and **AWS** (App Runner / ECS).
