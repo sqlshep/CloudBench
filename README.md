@@ -37,6 +37,8 @@ From there, enter your database connection details, pick a preset, and run. See 
 >
 > **Troubleshooting:** If the connection page shows *"Data Bench IP address: unable to detect"* or every connection times out, the machine running Data Bench has no outbound internet access — run it somewhere that can reach your database's host and port. Connection errors on the page include specific, copy-pasteable remediation steps.
 
+**Deploying to the cloud?** See the [**Docker Deployment Guide**](DEPLOYMENT.md) for step-by-step instructions on running Data Bench as a container on **Azure** (Container Apps), **Google Cloud** (Cloud Run), and **AWS** (App Runner / ECS).
+
 ---
 
 ## Before you start
@@ -51,7 +53,10 @@ Data Bench generates synthetic load — concurrent reads, writes, bulk inserts, 
 2. **Create an empty database (or let Data Bench do it).** Data Bench creates and manages its own test tables — you just need a blank database to connect to. Name it something like `benchmarks` or `cloudbench_test`. If the database doesn't exist, Data Bench will create it automatically when you test the connection, and enable snapshot isolation for SQL Server instances.
 3. **Make the database endpoint reachable over the internet.** Data Bench connects to your database remotely, so the server must accept inbound connections on its SQL port (1433 for SQL Server, 5432 for PostgreSQL, 3306 for MySQL). Ensure that public network access is enabled and that any firewall rules allow traffic from external IPs. Consult your cloud provider's documentation for how to configure network access on your specific service. Remember to lock it back down or delete the test server when you're done.
 4. **Use a dedicated test credential.** Create a SQL user specifically for benchmarking with only the required permissions (see "What database permissions do I need?" below). Do not reuse production service accounts.
-5. **Tear down after testing.** Once you've exported your results, delete the test server to avoid ongoing charges. Data Bench cleans up its own tables, but the server/instance itself is your responsibility.
+5. **Run Data Bench in the same region as the database.** Every operation is a network round-trip, so the physical distance between Data Bench and your database is added to *every* measurement. Running from a laptop or a container in a different region can add tens to hundreds of milliseconds per operation, which dominates latency numbers and caps throughput — you end up measuring the network, not the database.
+6. **Tear down after testing.** Once you've exported your results, delete the test server to avoid ongoing charges. Data Bench cleans up its own tables, but the server/instance itself is your responsibility.
+
+> **For a serious benchmark, co-locate Data Bench with the database.** Deploy the Data Bench container to the **same cloud region** as your target database (e.g., both in `westus2`, `us-central1`, or `us-east-1`). This keeps round-trip latency at the sub-millisecond level typical of intra-region traffic, so the results reflect the database's true performance rather than the distance between you and it. Cross-region or over-the-public-internet runs are fine for a quick smoke test, but the latency and IOPS figures will not be representative. See the [Docker Deployment Guide](DEPLOYMENT.md) for deploying into a specific region.
 
 ---
 
