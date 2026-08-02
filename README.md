@@ -6,6 +6,14 @@ Data Bench is a comprehensive benchmark suite for managed cloud databases where 
 
 ---
 
+> # ⚠️ DELETE YOUR TEST INSTANCE WHEN YOU ARE DONE ⚠️
+>
+> **Data Bench does not create or manage cloud infrastructure, and it does NOT delete it.** The test database server / managed instance you provision to benchmark is **yours to tear down.** Cloud databases bill continuously for as long as they exist — a forgotten Hyperscale, Managed Instance, or high-tier server can quietly run up **hundreds or thousands of dollars** per month.
+>
+> **When your benchmarking is finished, delete the test server/instance (and its resource group / project resources) in your cloud console.** Data Bench cleans up only its own test *tables* — never the server itself. **You are solely responsible for any costs incurred.**
+
+---
+
 ## Quick Start
 
 **Prerequisites:** Python 3.11+ and `git`. That's it — no database is installed locally; Data Bench connects to a database you already have.
